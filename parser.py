@@ -1,4 +1,10 @@
 
+# TODO update comment once done.
+"""
+The major methods from this module are lex(fileString) and, in future, parse(tokens)
+"""
+
+
 
 class PosChar:
     """A character with an attached pos.
@@ -11,7 +17,7 @@ class PosChar:
     def __add__(this,other): return str(this) + other
     def __radd__(this,other): return other + str(this)
     def __eq__(this,other): return this.char == other
-    def __hash__(this,other): return hash(this.char)
+    def __hash__(this): return hash(this.char)
     def charAtPos(this):
         """Returns a str of the format 'char' at pos ..."""
         if this.pos == None: return f"char {repr(this.char)} at end of file"
@@ -150,7 +156,6 @@ def error(msg):
         import sys
         print(msg,file=sys.stderr)
     except:
-        print("(Error while printing error message on stderr; used stdout instead)") # TODO remove
         print(msg)
     exit(1)
 
@@ -205,12 +210,21 @@ def lex(fileStr):
             if s.peek == "=": res.append(Token(char + s.pop(), char.pos))
             else: res.append(Token(char,char.pos))
         elif char == "/":
-            if itr == "/":
+            if s.peek == "/":
                 res.append(Token(char + s.pop(),char.pos))
-            elif itr == "*":
+            elif s.peek == "*":
                 s.pop()
                 # Handle multi-line comments.
-                # TODO
+                while True:
+                    if s.peek == "\0":
+                        error("Expected '*/' at end of multi-line comment, got end of file instead.")
+                    if s.peek == "*":
+                        s.pop()
+                        # Expect */
+                        if s.peek == "/":
+                            s.pop()
+                            break
+                    s.pop()
             else:
                 error(f"expected '/*' or '//', got '/' followed by {s.peek.charAtPos()}")
         elif char == "#" or char == "\n":
@@ -227,13 +241,26 @@ def lex(fileStr):
             res.append(Token(num,pos,int(num)))
         elif char == "\"":
             # str literal
-            for char in itr:
-                if char == "\n" or char == "\r":
-                    error("Expected ")
-            else:
-                error("Expected '\"' at end of string literal, got end of file instead.")
-            # TODO
-            
+            pos = char.pos
+            raw = "\""
+            val = ""
+            escapes = {"n":"\n","r":"\r","t":"\t","\\":"\\","\"":"\""}
+            while s.peek != "\"":
+                if s.peek == "\n" or s.peek == "\r":
+                    error(f"Unexpected char inside string literal: {s.peek.charAtPos()}")
+                if s.peek == "\0":
+                    error("Expected '\"' at end of string literal, got end of file instead.")
+                if s.peek == "\\": # Escape sequence
+                    raw += s.pop()
+                    if str(s.peek) not in escapes:
+                        error(f"Unknown escaped char inside string literal: {s.peek.charAtPos()}")
+                    raw += s.peek
+                    val += escapes[s.pop()]
+                    continue
+                raw += s.peek
+                val += s.pop()
+            raw += s.pop() # Ending quotation mark
+            res.append(Token(raw,pos,val))
         elif isAlpha(char):
             # var name or keyword
             name = str(char)
@@ -247,12 +274,9 @@ def lex(fileStr):
     return res
     
     
-    # TODO
-    
-    
-
-# TODO all 'for char in itr' loops need an 'else' case for handling depleting the iterator.
 
 
-# TODO finish lexer
+# TODO test lexer
+
+# TODO parser
 
