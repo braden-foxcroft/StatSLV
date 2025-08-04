@@ -1,0 +1,26 @@
+
+
+tokens:
+	operators, brackets, and assignment:
+		+ - * // to , ! == != <= >= < > or and not select ( )
+		= += -= *=
+	command keywords:
+		select from where for in if else elif break continue bychance print
+	comment markers:
+		# /* */
+	tokens:
+		variable names: [a-zA-Z][a-zA-Z0-9_]*
+		the nameless variable: _
+		integers: [0-9][0-9]*
+		strings: Use "" only, permits \n \r \t \\ \", must be single-line only.
+
+order of operations:
+	or
+	and
+	== != <= >= < >
+	,
+	to
+	+ -
+	* //
+	unary operators: ! - select not
+	()
