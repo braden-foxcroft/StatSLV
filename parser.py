@@ -1,28 +1,26 @@
 
 
-# TODO: rewrite the code using 'peek' and 'pop' interface.
-# The None value should be '\0', to prevent typing conflicts from becoming an issue.
-
 class PosChar:
     """A character with an attached pos.
     Supports this.pos, this + other. However, this + other returns a regular str."""
-    def __init__(this,string,pos):
-        this.string = string
+    def __init__(this,char,pos):
+        this.char = char
         this.pos = pos
-    def __str__(this): return this.string
-    def __repr__(this): return f"PosChar({repr(this.string)},{this.pos})"
+    def __str__(this): return this.char
+    def __repr__(this): return f"PosChar({repr(this.char)},{this.pos})"
     def __add__(this,other): return str(this) + other
     def __radd__(this,other): return other + str(this)
-    def __eq__(this,other): return this.string == other
-    # TODO nice char representation, for 'error' messages. Revise existing messages.
+    def __eq__(this,other): return this.char == other
+    def __hash__(this,other): return hash(this.char)
     def charAtPos(this):
         """Returns a str of the format 'char' at pos ..."""
+        if this.pos == None: return f"char {repr(this.char)} at end of file"
+        return f"char {repr(this.char)} at position {this.pos[0]} on line {this.pos[1]} (offset+{this.pos[2]})"
 
 class PosIter:
-    """An iterator over a string which tracks the character and line position, as well as character offset.
-    Skips carriage returns (\r), though uses them to calculate offset.
-    Each entry is a PosChar with the required position attached."""
+    """Takes an iterator or iterable over a string, creates an iterable over the same string with chars replaced with PosChar objects."""
     def __init__(this,fileCont):
+        """Takes an iterator or iterable over a string, creates an iterable over the same string with chars replaced with PosChar objects."""
         this._iter = iter(fileCont)
         this._offset = 0
         this._line = 1
@@ -45,43 +43,26 @@ class PosIter:
         return PosChar(res,(this._char,this._line,this._offset))
 
 
-
-class PBIter:
-    """An iterator with pushback (items can be put back without being used)."""
-    def __init__(this,iterable):
-        this._iter = iter(iterable)
-        this._putBack = []
+class Seq:
+    """A class supporting peek and pop interfaces. Used for getting items from an iterable."""
+    def __init__(this,iterable,terminatingVal):
+        """Takes an iterable (which it converts to a list) and a value to provide once there are no more values."""
+        this._ls = list(iterable)
+        this._pos = 0
+        this._end = terminatingVal
     
-    def __iter__(this): return this
+    @property
+    def peek(this):
+        """The next value to return."""
+        if this._pos >= len(this._ls): return this._end
+        return this._ls[this._pos]
     
-    def __next__(this):
-        if this._putBack: return this._putBack.pop()
-        return next(this._iter)
-    
-    def put(this,toPush):
-        """puts the char back into the iterator. put(None) does nothing."""
-        if toPush != None: this._putBack.append(toPush)
-    
-    def __eq__(this,nxt):
-        """Checks if the next entry is equal to nxt. Returns a boolean.
-        If no value is available, uses 'None'"""
-        if this._putBack:
-            nxt2 = this._putBack[-1]
-        else:
-            try:
-                nxt2 = next(this._iter)
-                this.put(nxt2)
-            except StopIteration:
-                nxt2 = None
-        return nxt == nxt2
-    
-    def get(this):
-        """Returns the next value, or None if not available.
-        Mostly used for error messages after '==' fails."""
-        try:
-            return this.__next__()
-        except StopIteration:
-            return None
+    def pop(this):
+        """Returns the next value and advances the pointer"""
+        if this._pos >= len(this._ls): return this._end
+        res = this._ls[this._pos]
+        this._pos += 1
+        return res
 
 
 class Token:
@@ -174,17 +155,15 @@ def error(msg):
     exit(1)
 
 
-# TODO tokenize (with token positions). Turn indent+ and indent- into tokens.
-
-def getIndent(itr,ind):
-    """Takes a PBIter and integer indentation depth, reads a series of '\t' chars off the iterator.
+def getIndent(s,ind):
+    """Takes a Seq and integer indentation depth, reads a series of '\t' chars off the iterator.
     Returns a new indentation depth and list of "{" or "}" Tokens, representing the change in indentation."""
-    if itr == None: return 0, ([Token("}",None)] * ind)
+    if s.peek == None: return 0, ([Token("}",None)] * ind)
     pos = None
     newInd = 0
-    while itr == "\t":
-        if pos == None: pos = itr.get().pos
-        else: itr.get()
+    while s.peek == "\t":
+        if pos == None: pos = s.peek.pos
+        s.pop()
         newInd += 1
     if newInd > ind: return newInd, ([Token("{",pos)] * (newInd - ind))
     if newInd < ind: return newInd, ([Token("}",pos)] * (ind - newInd))
@@ -205,55 +184,46 @@ def lex(fileStr):
     """Takes a file as a str, returns a list of Token objects."""
     res = []
     pI = PosIter(fileStr) # Used to get char, line, offset of token.
-    itr = PBIter(pI) # The iter to read from, with pushback and lookahead capabilities.
+    s = Seq(pI,PosChar("\0",None)) # The sequence to read from, supporting pop() and peek.
     ind = 0 # The current level of indentation.
     # Update indentation level.
-    ind,toks = getIndent(itr,ind)
+    ind,toks = getIndent(s,ind)
     res += toks
     # Main loop.
-    for char in itr:
-        # If the char is space, then advance until it isn't space.
-        if char == " ":
-            for char in itr:
-                if char != " ": break
-            else: break # Ran out of chars, no more tokens.
-        # 'char' is now not space.
+    while s.peek != "\0":
+        char = s.pop()
+        # Advance until char isn't space.
+        while char == " ": char = s.pop()
+        
+        # The various token possibilities
         if char == "(":
             res.append(Token("(",char.pos))
         elif char == ")":
             res.append(Token(")",char.pos))
         elif str(char) in {"+","-","*","!","<",">","="}:
             # All tokens which are either 't' or 't='.
-            if itr == "=": res.append(Token(char + itr.get(), char.pos))
+            if s.peek == "=": res.append(Token(char + s.pop(), char.pos))
             else: res.append(Token(char,char.pos))
         elif char == "/":
             if itr == "/":
-                itr.get()
-                res.append(Token("//",char.pos))
+                res.append(Token(char + s.pop(),char.pos))
             elif itr == "*":
-                itr.get()
+                s.pop()
                 # Handle multi-line comments.
                 # TODO
             else:
-                error(f"expected '/*' or '//', got partial {Token(char,char.pos)}")
+                error(f"expected '/*' or '//', got '/' followed by {s.peek.charAtPos()}")
         elif char == "#" or char == "\n":
             if char == "#":
                 # Read chars until end of line or file.
-                for char in itr:
-                    if char == "\n": break
-                else:
-                    char = None # End of file
-            if char == "\n": # Linebreak token.
-                res.append(Token("\n",char.pos))
+                while s.peek != "\0" and s.peek != "\n": s.pop()
+            if s.peek == "\n": # Linebreak token.
+                res.append(Token(s.pop(),char.pos))
         elif isDigit(char):
             # int literal
             pos = char.pos
             num = "" + char # To ensure str.
-            for char in itr:
-                if not isDigit(char):
-                    itr.put(char)
-                    break
-                num += char
+            while isDigit(s.peek): num += s.pop()
             res.append(Token(num,pos,int(num)))
         elif char == "\"":
             # str literal
@@ -268,16 +238,12 @@ def lex(fileStr):
             # var name or keyword
             name = str(char)
             pos = char.pos
-            for char in itr:
-                if not (isAlpha(char) or isDigit(char) or char == "_"):
-                    itr.put(char)
-                    break
-                name += char
+            while isAlpha(s.peek) or isDigit(s.peek) or s.peek == "_": name += s.pop()
             res.append(Token(name,pos))
         elif char == "_":
             res.append(Token(char,char.pos))
         else:
-            error(f"Unexpected char: {Token(char,char.pos)}")
+            error(f"Unexpected char: {char.charAtPos()}")
     return res
     
     
@@ -288,5 +254,5 @@ def lex(fileStr):
 # TODO all 'for char in itr' loops need an 'else' case for handling depleting the iterator.
 
 
-# TODO lexer
+# TODO finish lexer
 
