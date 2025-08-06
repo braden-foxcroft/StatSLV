@@ -98,7 +98,7 @@ class Token:
             this._isStr = True
         else:
             this._isStr = False
-        this._isVar = not (this._isInt or this._isStr or this._isOp or this._isKeyword) # Variable name
+        this._isVar = not (this._isInt or this._isStr or this._isOp or this._isKeyword or raw in ["\n","\0","{","}"]) # Variable name
         this._raw = raw
         this._pos = pos
         this._val = val
@@ -129,7 +129,7 @@ class Token:
         return this._raw
     
     def __str__(this):
-        if this._pos == None: return f"token {repr(this.raw)} at the end of the file."
+        if this._pos == None: return f"token {repr(this.raw)} at the end of the file (or abstract token created by the compiler)."
         return f"token {repr(this.raw)} at char {this._pos[0]} on line {this._pos[1]} (offset+{this._pos[2]})"
     def __repr__(this):
         if not this.fullRep:
@@ -141,8 +141,8 @@ class Token:
     
     @property
     def val(this):
-        """Returns the value for int or string literals. Otherwise, throws an error."""
-        if this._val == None: raise Exception("Tried to get Token.val for a token which wasn't a str or int literal.")
+        """Returns the value for int or string literals. Otherwise, returns raw."""
+        if this._val == None: return this._raw
         return this._val
     
     def __eq__(this,other):
@@ -226,7 +226,7 @@ def lex(fileStr):
                             break
                     s.pop()
             else:
-                error(f"expected '/*' or '//', got '/' followed by {s.peek.charAtPos()}")
+                res.append(Token(char,char.pos))
         elif char == "#" or char == "\n":
             if char == "#":
                 # Read chars until end of line or file.
@@ -271,12 +271,110 @@ def lex(fileStr):
             res.append(Token(char,char.pos))
         else:
             error(f"Unexpected char: {char.charAtPos()}")
+    res.append(Token("\n",None)) # To always end on an empty line.
     return res
-    
-    
 
 
 # TODO test lexer
 
+
+# TODO AST class
+class AST:
+    """An Abstract Syntax Tree node. Every child must also be an AST node, even int literals.
+    Behaves like a value for the purposes of equality, and like a list for indexing or iterating."""
+    def __init__(this,val,children):
+        """Takes the value at the node (a token), and a list of however many children the syntax requires.
+        If val == None, then the node corresponds to a block of instructions, and a 'val' will be generated automatically."""
+        if not isinstance(val,Token): raise Exception("AST val must be of type Token!")
+        for child in children:
+            if not isinstance(child,AST): raise Exception("AST children must be AST nodes as well!")
+        this._val = val
+        this._children = list(children)
+    
+    def __eq__(this,other):
+        """Checks if the other equals the token value"""
+        return this._val == other
+    
+    def __iter__(this): return iter(this._children)
+    
+    def __getitem__(this,index): return this._children[index]
+    
+    # TODO various recursive stuff, like static analysis?
+
+
+
 # TODO parser
+
+def parse(fileStr):
+    """Takes a file string, returns a block of code as an AST"""
+    tokens = lex(fileStr)
+    s = Seq(tokens,Token("\0",None))
+    return parseProg(s)
+
+
+def parseProg(s):
+    res = []
+    while s.peek != "\0":
+        com = parseCommand(s)
+        if com != None:
+            res.append(com)
+    return AST(Token("program",(0,0,0)),res)
+
+def parseCommand(s):
+    res = []
+    if s.peek == "\n":
+        return None
+    if s.peek == "select":
+        com = s.pop()
+        var = parseVar(s)
+        expect(s,"from")
+        expr = parseExpr(s)
+        if s.peek == "where":
+            s.pop()
+            expr2 = parseExpr(s)
+        else:
+            expr2 = AST(Token("1",None,1)) # The expression 'True'
+        expect(s,"\n")
+        return AST(com,[var,expr,expr2])
+    if s.peek in ["pass","fail","done","continue","break"]:
+        com = s.pop()
+        expect(s,"\n")
+        return AST(com,[])
+    if s.peek in ["return","bychance"]:
+        pass # TODO
+    if s.peek == "for":
+        pass # TODO
+    if s.peek == "if":
+        pass # TODO
+    if s.peek == "print":
+        pass # TODO
+    # TODO default case is var assignOp expr
+    var = parseVar(s)
+    op = getAssignOp(s)
+    
+    
+
+def expect(s,expected):
+    """Returns nothing, but expects the next token to be 'expected', and exits otherwise."""
+    if s.peek != expected:
+        error(f"Expected {repr(expected)}, got {s.peek}")
+
+def parseVar(s):
+    """Returns a var node"""
+    if not s.peek.isVar:
+        error(f"Expected varname, got {s.peek}")
+    return AST(s.pop(),[])
+
+def getAssignOp(s):
+    """Expects and returns an assignment operator token."""
+    if s.peek not in ["=","+=","-=","*="]:
+        error(f"Expected assignment operator (=,+=,-=,*=), got {s.peek}")
+    return s.pop()
+
+
+def parseExpr(s):
+    """Parses an expression from the stack."""
+    # TODO
+
+
 
