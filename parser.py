@@ -1,9 +1,18 @@
 
-# TODO update comment once done.
+
 """
-The major methods from this module are lex(fileString) and, in future, parse(tokens)
+This module provides a parse(fileStr) function.
+lex(fileString) can be used to get a list of tokens, if desired.
 """
 
+
+# TODO remove
+def inp():
+    """Get a file from the command-line. Used for testing, before the main module is built."""
+    import sys
+    print("Quit with ctrl-z and enter (on Windows) or ctrl-d (I think?) on linux.\nEnter file below:")
+    return sys.stdin.read()
+t1 = 'for i from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
 
 
 class PosChar:
@@ -76,7 +85,7 @@ class Token:
     whether it's a keyword and/or operator, and its type (int literal, varname, str literal)"""
     
     # A set of keyword and operator literals.
-    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "+=", "-=", "*=","(",")"}
+    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "+=", "-=", "*=","(",")","."}
     keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "break", "continue", "bychance", "print", "{", "}", "\n"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
@@ -85,7 +94,7 @@ class Token:
     
     def __init__(this,raw,pos,val=None):
         """raw: a raw string representing the token
-        pos: a 3-item tuple (char,line,offset) or None
+        pos: a 3-item tuple (char,line,offset), or -1 (End of file), or None (unknown pos)
         val: a processed int or str for int or str literals"""
         if isinstance(raw,PosChar): raw = str(raw)
         this._isOp = raw in this.operators # operator or bracket
@@ -127,9 +136,14 @@ class Token:
     def raw(this):
         """The raw string which generated the token."""
         return this._raw
+    @property
+    def pos(this):
+        """The position of the token, as a tuple. (or -1 or None)"""
+        return this._pos
     
     def __str__(this):
-        if this._pos == None: return f"token {repr(this.raw)} at the end of the file (or abstract token created by the compiler)."
+        if this._pos == -1: return f"token {repr(this.raw)} at the end of the file."
+        if this._pos == None: return f"token {repr(this.raw)} at unknown position."
         return f"token {repr(this.raw)} at char {this._pos[0]} on line {this._pos[1]} (offset+{this._pos[2]})"
     def __repr__(this):
         if not this.fullRep:
@@ -146,8 +160,8 @@ class Token:
         return this._val
     
     def __eq__(this,other):
-        """Converts to the token type. (int for int literal, str for string literal, raw str for everything else.)"""
-        if this.isInt or this.isStr: return this.val == other
+        """Compares to the raw string, or the int value for integer literals."""
+        if this.isInt: return this.val == other
         return this.raw == other
 
 def error(msg):
@@ -201,10 +215,8 @@ def lex(fileStr):
         while char == " ": char = s.pop()
         
         # The various token possibilities
-        if char == "(":
-            res.append(Token("(",char.pos))
-        elif char == ")":
-            res.append(Token(")",char.pos))
+        if char in ["(",")","$",".",","]:
+            res.append(Token(char,char.pos))
         elif str(char) in {"+","-","*","!","<",">","="}:
             # All tokens which are either 't' or 't='.
             if s.peek == "=": res.append(Token(char + s.pop(), char.pos))
@@ -230,9 +242,12 @@ def lex(fileStr):
         elif char == "#" or char == "\n":
             if char == "#":
                 # Read chars until end of line or file.
-                while s.peek != "\0" and s.peek != "\n": s.pop()
-            if s.peek == "\n": # Linebreak token.
-                res.append(Token(s.pop(),char.pos))
+                while char != "\0" and char != "\n": char = s.pop()
+            if char == "\n": # Linebreak token.
+                res.append(Token(char,char.pos))
+                # Handle new indentation level.
+                ind,toks = getIndent(s,ind)
+                res += toks
         elif isDigit(char):
             # int literal
             pos = char.pos
@@ -270,15 +285,16 @@ def lex(fileStr):
         elif char == "_":
             res.append(Token(char,char.pos))
         else:
-            error(f"Unexpected char: {char.charAtPos()}")
-    res.append(Token("\n",None)) # To always end on an empty line.
+            error(f"Unexpected char at start of token: {char.charAtPos()}")
+    res.append(Token("\n",-1)) # To always end on an empty line.
+    ind,toks = getIndent(s,ind)
+    res += toks
     return res
 
 
 # TODO test lexer
 
 
-# TODO AST class
 class AST:
     """An Abstract Syntax Tree node. Every child must also be an AST node, even int literals.
     Behaves like a value for the purposes of equality, and like a list for indexing or iterating."""
@@ -299,18 +315,44 @@ class AST:
     
     def __getitem__(this,index): return this._children[index]
     
+    @property
+    def val(this): return this._val
+    @property
+    def pos(this):
+        """Returns the position of the val"""
+        return this.val.pos
+    
+    def __str__(this): return this._build(0)
+    def __repr__(this): return f"AST({repr(this._val)},{repr(this._children)})"
+    
+    def _build(this,indent):
+        res = "\t" * indent + this.val.raw
+        for child in this:
+            res += "\n" + child._build(indent+1)
+        return res
     # TODO various recursive stuff, like static analysis?
 
 
 
-# TODO parser
+# TODO test parser
 
 def parse(fileStr):
     """Takes a file string, returns a block of code as an AST"""
     tokens = lex(fileStr)
-    s = Seq(tokens,Token("\0",None))
+    s = Seq(tokens,Token("\0",-1))
     return parseProg(s)
 
+def parseBlock(s):
+    """If no seq is provided, returns an empty block AST (for convenience)"""
+    if s == None: return AST(Token("block",None),[])
+    pos = expect(s,"{").pos
+    res = []
+    while s.peek != "}":
+        com = parseCommand(s)
+        if com != None:
+            res.append(com)
+    s.pop()
+    return AST(Token("block",pos),res)
 
 def parseProg(s):
     res = []
@@ -323,6 +365,7 @@ def parseProg(s):
 def parseCommand(s):
     res = []
     if s.peek == "\n":
+        s.pop()
         return None
     if s.peek == "select":
         com = s.pop()
@@ -333,7 +376,7 @@ def parseCommand(s):
             s.pop()
             expr2 = parseExpr(s)
         else:
-            expr2 = AST(Token("1",None,1)) # The expression 'True'
+            expr2 = AST(Token("1",com.pos,1)) # The expression 'True'
         expect(s,"\n")
         return AST(com,[var,expr,expr2])
     if s.peek in ["pass","fail","done","continue","break"]:
@@ -341,23 +384,67 @@ def parseCommand(s):
         expect(s,"\n")
         return AST(com,[])
     if s.peek in ["return","bychance"]:
-        pass # TODO
+        com = s.pop()
+        # Take a single expr argument
+        expr = parseExpr(s)
+        expect(s,"\n")
+        return AST(com,[expr])
     if s.peek == "for":
-        pass # TODO
+        com = s.pop()
+        var = parseVar(s)
+        if s.peek not in ["in","from"]:
+            error(f"Expected 'in' or 'from', got {s.peek}")
+        s.pop()
+        expr = parseExpr(s)
+        expect(s,"\n")
+        block = parseBlock(s)
+        return AST(com,[var,expr,block])
     if s.peek == "if":
-        pass # TODO
+        com = s.pop()
+        # Result is a series of ASTs: expr, block, expr, block...
+        # 'else' is just 'elif 1'
+        res = []
+        expr = parseExpr(s)
+        expect(s,"\n")
+        block = parseBlock(s)
+        res += [expr,block]
+        while s.peek == "elif" or s.peek == "else":
+            if s.peek == "else":
+                expr = AST(Token("1",s.pop().pos,1)) # The expression 'True'
+                expect(s,"\n")
+                block = parseBlock(s)
+            else: # s.peek == "elif"
+                s.pop()
+                expr = parseExpr(s)
+                expect(s,"\n")
+                block = parseBlock(s)
+            res += [expr,block]
+        return AST(com,res)
     if s.peek == "print":
-        pass # TODO
-    # TODO default case is var assignOp expr
+        com = s.pop()
+        res = []
+        # Either *, _, or a series of expressions.
+        while s.peek != "\n":
+            if s.peek in ["*","_"]:
+                res.append(AST(s.pop(),[]))
+            else:
+                expr = parseExpr(s)
+                res.append(expr)
+        s.pop()
+        return AST(com,res)
+    # Default case is var assignOp expr
     var = parseVar(s)
     op = getAssignOp(s)
+    expr = parseExpr(s)
+    return AST(Token("set",var.pos),[var,AST(op,[]),expr])
     
     
 
 def expect(s,expected):
-    """Returns nothing, but expects the next token to be 'expected', and exits otherwise."""
+    """Expects the next token to be 'expected', and exits otherwise. Returns the expected token."""
     if s.peek != expected:
         error(f"Expected {repr(expected)}, got {s.peek}")
+    return s.pop()
 
 def parseVar(s):
     """Returns a var node"""
@@ -373,8 +460,94 @@ def getAssignOp(s):
 
 
 def parseExpr(s):
-    """Parses an expression from the stack."""
-    # TODO
+    """Parses an expression from the stack. Returns an node of type expr."""
+    expr = parseExpr1(s)
+    return AST(Token("expr",expr.pos),[expr])
+    
 
 
+def parseExpr1(s):
+    """expr1 = expr2 {or expr2}"""
+    expr = parseExpr2(s)
+    while s.peek == "or":
+        op = s.pop()
+        expr2 = parseExpr2(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+    
 
+def parseExpr2(s):
+    """expr2 = expr3 {and expr3}"""
+    expr = parseExpr3(s)
+    while s.peek == "and":
+        op = s.pop()
+        expr2 = parseExpr3(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+    
+
+def parseExpr3(s):
+    """expr3 = expr4 {("==" | "!=" | "<=" | ">=" | "<=" | ">" | "<") expr4}"""
+    expr = parseExpr4(s)
+    while s.peek in ["==","!=","<=",">=",">","<"]:
+        op = s.pop()
+        expr2 = parseExpr4(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+
+def parseExpr4(s):
+    """expr4 = expr5 {"," expr5}"""
+    expr = parseExpr5(s)
+    while s.peek == ",":
+        op = s.pop()
+        expr2 = parseExpr5(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+
+def parseExpr5(s):
+    """expr5 = expr6 {("to" | ".") expr6}"""
+    expr = parseExpr6(s)
+    while s.peek in ["to","."]:
+        op = s.pop()
+        expr2 = parseExpr6(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+
+def parseExpr6(s):
+    """expr6 = expr7 {("+" | "-") expr7}"""
+    expr = parseExpr7(s)
+    while s.peek in ["+","-"]:
+        op = s.pop()
+        expr2 = parseExpr7(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+
+def parseExpr7(s):
+    """expr7 = expr8 {("*" | "//" | "%" | "/") expr8}"""
+    expr = parseExpr8(s)
+    while s.peek in ["*","//","%","/"]:
+        op = s.pop()
+        expr2 = parseExpr8(s)
+        expr = AST(op,[expr,expr2])
+    return expr
+
+def parseExpr8(s):
+    """expr8 = ["!" | "-" | "select" | "not"] expr9"""
+    if s.peek in ["!","-","select","not"]:
+        op = s.pop()
+        expr = parseExpr9(s)
+        return AST(op,[expr])
+    expr = parseExpr9(s)
+    return expr
+    
+
+def parseExpr9(s):
+    """expr9 = int | var | string | "(" expr1 ")" """
+    if s.peek.isInt or s.peek.isVar or s.peek.isStr:
+        return AST(s.pop(),[])
+    if s != "(":
+        error(f"While parsing an expression, expected a value or '(', got: {s.peek}")
+    s.pop()
+    expr = parseExpr1(s)
+    expect(s,")")
+    return expr
