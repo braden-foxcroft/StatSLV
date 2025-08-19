@@ -3,6 +3,7 @@
 """
 This module provides a parse(fileStr) function.
 lex(fileString) can be used to get a list of tokens, if desired.
+The AST class contains some of the static analysis code.
 """
 
 
@@ -18,9 +19,10 @@ t1 = 'for i from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndon
 class PosChar:
     """A character with an attached pos.
     Supports this.pos, this + other. However, this + other returns a regular str."""
-    def __init__(this,char,pos):
+    def __init__(this,char,pos,line="<No line provided>"):
         this.char = char
         this.pos = pos
+        this.line = line
     def __str__(this): return this.char
     def __repr__(this): return f"PosChar({repr(this.char)},{this.pos})"
     def __add__(this,other): return str(this) + other
@@ -40,6 +42,7 @@ class PosIter:
         this._offset = 0
         this._line = 1
         this._char = 0
+        this._lineStr = []
     
     def __iter__(this): return this
     
@@ -53,9 +56,11 @@ class PosIter:
         if res == "\n":
             this._line += 1
             this._char = 0
+            this._lineStr = []
         else:
             this._char += 1
-        return PosChar(res,(this._char,this._line,this._offset))
+            this._lineStr.append(res)
+        return PosChar(res,(this._char,this._line,this._offset),this._lineStr)
 
 
 class Seq:
@@ -79,7 +84,6 @@ class Seq:
         this._pos += 1
         return res
 
-
 class Token:
     """A token class. Tracks the raw str which generated it, the value,
     whether it's a keyword and/or operator, and its type (int literal, varname, str literal)"""
@@ -92,7 +96,7 @@ class Token:
     fullRep = False
     
     
-    def __init__(this,raw,pos,val=None):
+    def __init__(this,raw,pos,line="No line provided",val=None):
         """raw: a raw string representing the token
         pos: a 3-item tuple (char,line,offset), or -1 (End of file), or None (unknown pos)
         val: a processed int or str for int or str literals"""
@@ -111,6 +115,7 @@ class Token:
         this._raw = raw
         this._pos = pos
         this._val = val
+        this._line = "".join(line) # Convert a list of chars to a str.
     
     @property
     def isOp(this):
@@ -140,6 +145,10 @@ class Token:
     def pos(this):
         """The position of the token, as a tuple. (or -1 or None)"""
         return this._pos
+    @property
+    def line(this):
+        """The str representing the line. Available for all token types."""
+        return this._line
     
     def __str__(this):
         if this._pos == -1: return f"token {repr(this.raw)} at the end of the file."
@@ -150,8 +159,11 @@ class Token:
             # Simple rep
             if this.isInt: return repr(this.val)
             return repr(this.raw)
-        if this._val == None: return f"Token(raw = {repr(this.raw)}, pos = {repr(this._pos)})"
-        return f"Token(raw = {repr(this.raw)}, pos = {repr(this._pos)}, val = {repr(this.val)})"
+        if this._val != None:
+            return f"Token(raw = {repr(this.raw)}, pos = {repr(this._pos)}, line = {repr(this.line)}, val = {repr(this.val)})"
+        if this._line != "No line provided":
+            return f"Token(raw = {repr(this.raw)}, pos = {repr(this._pos)}, line = {repr(this.line)})"
+        return f"Token(raw = {repr(this.raw)}, pos = {repr(this._pos)})"
     
     @property
     def val(this):
@@ -216,14 +228,14 @@ def lex(fileStr):
         
         # The various token possibilities
         if char in ["(",")","$",".",","]:
-            res.append(Token(char,char.pos))
+            res.append(Token(char,char.pos,char.line))
         elif str(char) in {"+","-","*","!","<",">","="}:
             # All tokens which are either 't' or 't='.
-            if s.peek == "=": res.append(Token(char + s.pop(), char.pos))
-            else: res.append(Token(char,char.pos))
+            if s.peek == "=": res.append(Token(char + s.pop(), char.pos,char.line))
+            else: res.append(Token(char,char.pos,char.line))
         elif char == "/":
             if s.peek == "/":
-                res.append(Token(char + s.pop(),char.pos))
+                res.append(Token(char + s.pop(),char.pos,char.line))
             elif s.peek == "*":
                 s.pop()
                 # Handle multi-line comments.
@@ -238,25 +250,23 @@ def lex(fileStr):
                             break
                     s.pop()
             else:
-                res.append(Token(char,char.pos))
+                res.append(Token(char,char.pos,char.line))
         elif char == "#" or char == "\n":
             if char == "#":
                 # Read chars until end of line or file.
                 while char != "\0" and char != "\n": char = s.pop()
             if char == "\n": # Linebreak token.
-                res.append(Token(char,char.pos))
+                res.append(Token(char,char.pos,char.line))
                 # Handle new indentation level.
                 ind,toks = getIndent(s,ind)
                 res += toks
         elif isDigit(char):
             # int literal
-            pos = char.pos
             num = "" + char # To ensure str.
             while isDigit(s.peek): num += s.pop()
-            res.append(Token(num,pos,int(num)))
+            res.append(Token(num,char.pos,char.line,int(num)))
         elif char == "\"":
             # str literal
-            pos = char.pos
             raw = "\""
             val = ""
             escapes = {"n":"\n","r":"\r","t":"\t","\\":"\\","\"":"\""}
@@ -275,37 +285,38 @@ def lex(fileStr):
                 raw += s.peek
                 val += s.pop()
             raw += s.pop() # Ending quotation mark
-            res.append(Token(raw,pos,val))
+            res.append(Token(raw,char.pos,char.line,val))
         elif isAlpha(char):
             # var name or keyword
             name = str(char)
-            pos = char.pos
             while isAlpha(s.peek) or isDigit(s.peek) or s.peek == "_": name += s.pop()
-            res.append(Token(name,pos))
+            res.append(Token(name,char.pos,char.line))
         elif char == "_":
-            res.append(Token(char,char.pos))
+            res.append(Token(char,char.pos,char.line))
         else:
             error(f"Unexpected char at start of token: {char.charAtPos()}")
-    res.append(Token("\n",-1)) # To always end on an empty line.
+    res.append(Token("\n",-1,"<Added linebreak at end of file>")) # To always end on an empty line.
     ind,toks = getIndent(s,ind)
     res += toks
     return res
 
-
 # TODO test lexer
 
-
+# TODO AST nodes need metadata:
+# is expr root node, is command, is var name, etc.
+# This will be used for context later on.
 class AST:
     """An Abstract Syntax Tree node. Every child must also be an AST node, even int literals.
     Behaves like a value for the purposes of equality, and like a list for indexing or iterating."""
-    def __init__(this,val,children):
-        """Takes the value at the node (a token), and a list of however many children the syntax requires.
-        If val == None, then the node corresponds to a block of instructions, and a 'val' will be generated automatically."""
+    def __init__(this,val,children,command = False,expr = False):
+        """Takes the value at the node (a token), and a list of however many AST children the the node requires.
+        optionally takes 'command' and 'expr', for command nodes and the root nodes of expressions."""
         if not isinstance(val,Token): raise Exception("AST val must be of type Token!")
         for child in children:
             if not isinstance(child,AST): raise Exception("AST children must be AST nodes as well!")
         this._val = val
         this._children = list(children)
+        this._command = command
     
     def __eq__(this,other):
         """Checks if the other equals the token value"""
@@ -330,8 +341,22 @@ class AST:
         for child in this:
             res += "\n" + child._build(indent+1)
         return res
-    # TODO various recursive stuff, like static analysis?
-
+    
+    def filter(this,function = lambda node : True):
+        """Returns a list of AST nodes for which function(node) returns True"""
+        # TODO
+    
+    def modify(this,function = lambda node: [node]):
+        """Modifies the AST by applying 'function' to each command node, and replacing the command in the list with
+        the list of commands produced by 'function'"""
+        # TODO
+    
+    # TODO move 'select' function calls to separate lines,
+    # TODO code for figuring out which lines run before/after which lines,
+    # code for tracking variable use, add 'discard' attribute to command nodes for when variables are no longer used.
+    # TODO aggregate all var names, add mapping of var names to integers.
+    # TODO code for reconstructing original file as str.
+    
 
 
 # TODO test parser
