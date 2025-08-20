@@ -21,9 +21,9 @@ tokens:
 order of operations (top of the list executes first):
 	()
 	unary operators: ! - select not $.
-	* // % /
+	* // % / .
 	+ -
-	to .
+	to
 	,
 	== != <= >= < >
 	and
@@ -68,9 +68,9 @@ expr1 = expr2 {"or" expr2}
 expr2 = expr3 {"and" expr3}
 expr3 = expr4 {("==" | "!=" | "<=" | ">=" | "<=" | ">" | "<") expr4}
 expr4 = expr5 {"," expr5}
-expr5 = expr6 {("to" | ".") expr6}
+expr5 = expr6 {"to" expr6}
 expr6 = expr7 {("+" | "-") expr7}
-expr7 = expr8 {("*" | "//" | "%" | "/") expr8}
+expr7 = expr8 {("*" | "//" | "%" | "/" | ".") expr8}
 expr8 = ["!" | "-" | "select" | "not"] expr9
 expr9 = int | var | string | "(" expr1 ")"
 

@@ -265,6 +265,9 @@ def lex(fileStr):
             num = "" + char # To ensure str.
             while isDigit(s.peek): num += s.pop()
             res.append(Token(num,char.pos,char.line,int(num)))
+            if s.peek == ".":
+                # TODO color
+                error(f"This language does not support floating point numbers.\nConsider using fractions instead (for example 2 / 3). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\nError occured when parsing {s.peek.charAtPos()}")
         elif char == "\"":
             # str literal
             raw = "\""
@@ -295,28 +298,27 @@ def lex(fileStr):
             res.append(Token(char,char.pos,char.line))
         else:
             error(f"Unexpected char at start of token: {char.charAtPos()}")
-    res.append(Token("\n",-1,"<Added linebreak at end of file>")) # To always end on an empty line.
+    res.append(Token("\n",-1,"<Compiler added linebreak at end of file>")) # To always end on an empty line.
     ind,toks = getIndent(s,ind)
     res += toks
     return res
 
 # TODO test lexer
 
-# TODO AST nodes need metadata:
-# is expr root node, is command, is var name, etc.
-# This will be used for context later on.
 class AST:
     """An Abstract Syntax Tree node. Every child must also be an AST node, even int literals.
     Behaves like a value for the purposes of equality, and like a list for indexing or iterating."""
-    def __init__(this,val,children,command = False,expr = False):
+    def __init__(this,val,children,command = False,expr = False,var = False):
         """Takes the value at the node (a token), and a list of however many AST children the the node requires.
-        optionally takes 'command' and 'expr', for command nodes and the root nodes of expressions."""
+        optionally takes 'command', 'expr', and 'var', for command nodes, the root nodes of expressions, and variable references."""
         if not isinstance(val,Token): raise Exception("AST val must be of type Token!")
         for child in children:
             if not isinstance(child,AST): raise Exception("AST children must be AST nodes as well!")
         this._val = val
         this._children = list(children)
         this._command = command
+        this._expr = expr
+        this._var = var
     
     def __eq__(this,other):
         """Checks if the other equals the token value"""
@@ -327,11 +329,25 @@ class AST:
     def __getitem__(this,index): return this._children[index]
     
     @property
-    def val(this): return this._val
+    def val(this):
+        """The token at the root of the current subtree"""
+        return this._val
     @property
     def pos(this):
         """Returns the position of the val"""
         return this.val.pos
+    @property
+    def command(this):
+        """Checks if the AST node is a command"""
+        return this._command
+    @property
+    def expr(this):
+        """Checks if the AST node is an expression root node"""
+        return this._expr
+    @property
+    def var(this):
+        """Checks if the AST node is a variable name."""
+        return this._var
     
     def __str__(this): return this._build(0)
     def __repr__(this): return f"AST({repr(this._val)},{repr(this._children)})"
@@ -344,18 +360,22 @@ class AST:
     
     def filter(this,function = lambda node : True):
         """Returns a list of AST nodes for which function(node) returns True"""
-        # TODO
+        res = []
+        if function(this):
+            res.append(this)
+        for child in this:
+            res += child.filter(function)
+        return res
     
     def modify(this,function = lambda node: [node]):
         """Modifies the AST by applying 'function' to each command node, and replacing the command in the list with
         the list of commands produced by 'function'"""
         # TODO
     
-    # TODO move 'select' function calls to separate lines,
-    # TODO code for figuring out which lines run before/after which lines,
-    # code for tracking variable use, add 'discard' attribute to command nodes for when variables are no longer used.
-    # TODO aggregate all var names, add mapping of var names to integers.
-    # TODO code for reconstructing original file as str.
+    
+    def reconstruct(this,color=False):
+        """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting."""
+        # TODO code for reconstructing original file as str.
     
 
 
@@ -403,17 +423,17 @@ def parseCommand(s):
         else:
             expr2 = AST(Token("1",com.pos,1)) # The expression 'True'
         expect(s,"\n")
-        return AST(com,[var,expr,expr2])
+        return AST(com,[var,expr,expr2],command=True)
     if s.peek in ["pass","fail","done","continue","break"]:
         com = s.pop()
         expect(s,"\n")
-        return AST(com,[])
+        return AST(com,[],command=True)
     if s.peek in ["return","bychance"]:
         com = s.pop()
         # Take a single expr argument
         expr = parseExpr(s)
         expect(s,"\n")
-        return AST(com,[expr])
+        return AST(com,[expr],command=True)
     if s.peek == "for":
         com = s.pop()
         var = parseVar(s)
@@ -423,7 +443,7 @@ def parseCommand(s):
         expr = parseExpr(s)
         expect(s,"\n")
         block = parseBlock(s)
-        return AST(com,[var,expr,block])
+        return AST(com,[var,expr,block],command=True)
     if s.peek == "if":
         com = s.pop()
         # Result is a series of ASTs: expr, block, expr, block...
@@ -444,7 +464,7 @@ def parseCommand(s):
                 expect(s,"\n")
                 block = parseBlock(s)
             res += [expr,block]
-        return AST(com,res)
+        return AST(com,res,command=True)
     if s.peek == "print":
         com = s.pop()
         res = []
@@ -456,14 +476,14 @@ def parseCommand(s):
                 expr = parseExpr(s)
                 res.append(expr)
         s.pop()
-        return AST(com,res)
+        return AST(com,res,command=True)
     # Default case is var assignOp expr
     var = parseVar(s)
     op = getAssignOp(s)
     expr = parseExpr(s)
-    return AST(Token("set",var.pos),[var,AST(op,[]),expr])
-    
-    
+    return AST(Token("set",var.pos,var.val.line),[var,AST(op,[]),expr],command=True)
+
+
 
 def expect(s,expected):
     """Expects the next token to be 'expected', and exits otherwise. Returns the expected token."""
@@ -475,7 +495,7 @@ def parseVar(s):
     """Returns a var node"""
     if not s.peek.isVar:
         error(f"Expected varname, got {s.peek}")
-    return AST(s.pop(),[])
+    return AST(s.pop(),[],var=True)
 
 def getAssignOp(s):
     """Expects and returns an assignment operator token."""
@@ -487,7 +507,7 @@ def getAssignOp(s):
 def parseExpr(s):
     """Parses an expression from the stack. Returns an node of type expr."""
     expr = parseExpr1(s)
-    return AST(Token("expr",expr.pos),[expr])
+    return AST(Token("expr",expr.pos),[expr],expr=True)
     
 
 
@@ -530,9 +550,9 @@ def parseExpr4(s):
     return expr
 
 def parseExpr5(s):
-    """expr5 = expr6 {("to" | ".") expr6}"""
+    """expr5 = expr6 {"to" expr6}"""
     expr = parseExpr6(s)
-    while s.peek in ["to","."]:
+    while s.peek in ["to"]:
         op = s.pop()
         expr2 = parseExpr6(s)
         expr = AST(op,[expr,expr2])
@@ -550,7 +570,7 @@ def parseExpr6(s):
 def parseExpr7(s):
     """expr7 = expr8 {("*" | "//" | "%" | "/") expr8}"""
     expr = parseExpr8(s)
-    while s.peek in ["*","//","%","/"]:
+    while s.peek in ["*","//","%","/","."]:
         op = s.pop()
         expr2 = parseExpr8(s)
         expr = AST(op,[expr,expr2])
@@ -568,9 +588,11 @@ def parseExpr8(s):
 
 def parseExpr9(s):
     """expr9 = int | var | string | "(" expr1 ")" """
-    if s.peek.isInt or s.peek.isVar or s.peek.isStr:
+    if s.peek.isVar:
+        return AST(s.pop(),[],var=True)
+    if s.peek.isInt or s.peek.isStr:
         return AST(s.pop(),[])
-    if s != "(":
+    if s.peek != "(":
         error(f"While parsing an expression, expected a value or '(', got: {s.peek}")
     s.pop()
     expr = parseExpr1(s)
