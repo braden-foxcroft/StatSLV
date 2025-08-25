@@ -328,6 +328,8 @@ class AST:
     
     def __getitem__(this,index): return this._children[index]
     
+    def __len__(this): return len(this._children)
+    
     @property
     def val(this):
         """The token at the root of the current subtree"""
@@ -348,6 +350,14 @@ class AST:
     def var(this):
         """Checks if the AST node is a variable name."""
         return this._var
+    def opB(this):
+        """Checks if the AST node is an operator taking two inputs (binary operator)"""
+        return this.val in ["*", "//", "%", "/", ".", "+", "-", "to", ",", "==", "!=", "<=" ">=", "<", ">", "and", "or"]
+    def opU(this):
+        """Checks if the AST node is an operator taking a single input."""
+        return this.val in ["select","not"]
+        # TODO canonical form: 'not' or '!'.
+        
     
     def __str__(this): return this._build(0)
     def __repr__(this): return f"AST({repr(this._val)},{repr(this._children)})"
@@ -373,9 +383,56 @@ class AST:
         # TODO
     
     
-    def reconstruct(this,color=False):
-        """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting."""
+    def reconstruct(this,color=False,indent=0):
+        """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting. 'indent' determines the working level of indentation."""
+        # TODO implement color.
+        res = ""
+        if this.val == "program":
+            for child in this:
+                res += child.reconstruct(color,indent)
+            return res + "\n"
+        if this.val == "block":
+            for child in this:
+                res += child.reconstruct(color,indent+1)
+            return res
+        if this.val == "for":
+            res += "\t"*indent+"for "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+"\n"
+            res += this[2].reconstruct(color,indent)
+            return res
+        if this.val == "if":
+            res += "\t"*indent+"if "+this[0].reconstruct(color,indent)+"\n"
+            res += this[1].reconstruct(color,indent)
+            # Create an iterator which skips the first 2 elements
+            i = iter(this)
+            next(i)
+            next(i)
+            # Iterate over the remaining children
+            for condition in i:
+                block = next(i) # If this fails, the AST node is poorly formatted. The children are consecutive expr, block pairs.
+                res += "\t"*indent+"elif "+condition.reconstruct(color,indent)+"\n"
+                res += block.reconstruct(color,indent)
+            return res
+        if this.val == "set":
+            return "\t"*indent+this[0].reconstruct(color,indent)+" "+this[1].reconstruct(color,indent)+" "+this[2].reconstruct(color,indent)+"\n"
+        if this.val == "select":
+            return "\t"*indent+"select "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+" where "+this[2].reconstruct(color,indent)+"\n"
+        if this.var:
+            return this.val.raw
+        if this.val in ["pass","fail","done","break","continue"]:
+            return "\t"*indent+this.val.raw+"\n"
+        if len(this) == 0:
+            return this.val.raw
+        if this.expr:
+            return this[0].reconstruct(color,indent)
+        if this.opB:
+            return f"({this[0].reconstruct(color,indent)} {this.val.raw} {this[1].reconstruct(color,indent)})"
+        if this.opU:
+            return f"{this[0].reconstruct(color,indent)} ({this[1].reconstruct(color,indent)})"
+        if this.val.isStr: return this.val.raw
+        if this.val.isInt: return this.val.val
+        raise Exception(f"Unhandled case: could not reconstruct string form of AST node with root: {this.val}")
         # TODO code for reconstructing original file as str.
+        
     
 
 
@@ -580,6 +637,8 @@ def parseExpr8(s):
     """expr8 = ["!" | "-" | "select" | "not"] expr9"""
     if s.peek in ["!","-","select","not"]:
         op = s.pop()
+        if op == "!": # '!' is just 'not'
+            op.raw = "not"
         expr = parseExpr9(s)
         return AST(op,[expr])
     expr = parseExpr9(s)

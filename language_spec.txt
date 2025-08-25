@@ -20,7 +20,7 @@ tokens:
 
 order of operations (top of the list executes first):
 	()
-	unary operators: ! - select not $.
+	unary operators: ! - select not
 	* // % / .
 	+ -
 	to
