@@ -9,11 +9,12 @@ The AST class contains some of the static analysis code.
 
 # TODO remove
 def inp():
-    """Get a file from the command-line. Used for testing, before the main module is built."""
+    """Get a file from the command line. Used for testing, before the main module is built."""
     import sys
     print("Quit with ctrl-z and enter (on Windows) or ctrl-d (I think?) on linux.\nEnter file below:")
     return sys.stdin.read()
 t1 = 'for i from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
+t2 = 'for program from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
 
 
 class PosChar:
@@ -308,17 +309,18 @@ def lex(fileStr):
 class AST:
     """An Abstract Syntax Tree node. Every child must also be an AST node, even int literals.
     Behaves like a value for the purposes of equality, and like a list for indexing or iterating."""
-    def __init__(this,val,children,command = False,expr = False,var = False):
+    def __init__(this,val,children,nodeType):
         """Takes the value at the node (a token), and a list of however many AST children the the node requires.
-        optionally takes 'command', 'expr', and 'var', for command nodes, the root nodes of expressions, and variable references."""
+        'nodeType' should be string, like program, block, command, expr, opB, opU, var, int, str"""
         if not isinstance(val,Token): raise Exception("AST val must be of type Token!")
         for child in children:
             if not isinstance(child,AST): raise Exception("AST children must be AST nodes as well!")
         this._val = val
         this._children = list(children)
-        this._command = command
-        this._expr = expr
-        this._var = var
+        validTypes = ["program","block","command","expr","opB","opU","var","int","str"]
+        if nodeType not in validTypes:
+            raise Exception(f"Expected node of one of these types: {validTypes}\nGot node of type {repr(nodeType)}")
+        this._type = nodeType
     
     def __eq__(this,other):
         """Checks if the other equals the token value"""
@@ -339,28 +341,19 @@ class AST:
         """Returns the position of the val"""
         return this.val.pos
     @property
-    def command(this):
-        """Checks if the AST node is a command"""
-        return this._command
-    @property
-    def expr(this):
-        """Checks if the AST node is an expression root node"""
-        return this._expr
-    @property
-    def var(this):
-        """Checks if the AST node is a variable name."""
-        return this._var
+    def nodeType(this):
+        """Returns the type of the node."""
+        return this._type
     def opB(this):
         """Checks if the AST node is an operator taking two inputs (binary operator)"""
         return this.val in ["*", "//", "%", "/", ".", "+", "-", "to", ",", "==", "!=", "<=" ">=", "<", ">", "and", "or"]
     def opU(this):
         """Checks if the AST node is an operator taking a single input."""
         return this.val in ["select","not"]
-        # TODO canonical form: 'not' or '!'.
         
     
     def __str__(this): return this._build(0)
-    def __repr__(this): return f"AST({repr(this._val)},{repr(this._children)})"
+    def __repr__(this): return f"AST({repr(this._val)},{repr(this._children)},{repr(this._type)})"
     
     def _build(this,indent):
         res = "\t" * indent + this.val.raw
@@ -379,27 +372,39 @@ class AST:
     
     def modify(this,function = lambda node: [node]):
         """Modifies the AST by applying 'function' to each command node, and replacing the command in the list with
-        the list of commands produced by 'function'"""
-        # TODO
+        the list of commands produced by 'function'. 'function' takes a node and returns a list of nodes.
+        This is not a mutation operation; it makes a new AST.
+        The 'function' applies to the child nodes before the parent.
+        """
+        res = []
+        for child in this:
+            res += child.modify(function)
+        new = AST(this.val,res,this.nodeType)
+        if new.nodeType == "command":
+            return function(new)
+        if new.nodeType == "program":
+            return new
+        return [new]
+        
     
     
     def reconstruct(this,color=False,indent=0):
         """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting. 'indent' determines the working level of indentation."""
         # TODO implement color.
         res = ""
-        if this.val == "program":
+        if this.nodeType == "program":
             for child in this:
                 res += child.reconstruct(color,indent)
             return res + "\n"
-        if this.val == "block":
+        if this.nodeType == "block":
             for child in this:
                 res += child.reconstruct(color,indent+1)
             return res
-        if this.val == "for":
+        if this.nodeType == "command" and this.val == "for":
             res += "\t"*indent+"for "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+"\n"
             res += this[2].reconstruct(color,indent)
             return res
-        if this.val == "if":
+        if this.nodeType == "command" and this.val == "if":
             res += "\t"*indent+"if "+this[0].reconstruct(color,indent)+"\n"
             res += this[1].reconstruct(color,indent)
             # Create an iterator which skips the first 2 elements
@@ -412,28 +417,24 @@ class AST:
                 res += "\t"*indent+"elif "+condition.reconstruct(color,indent)+"\n"
                 res += block.reconstruct(color,indent)
             return res
-        if this.val == "set":
+        if this.nodeType == "command" and this.val == "set":
             return "\t"*indent+this[0].reconstruct(color,indent)+" "+this[1].reconstruct(color,indent)+" "+this[2].reconstruct(color,indent)+"\n"
-        if this.val == "select":
+        if this.nodeType == "command" and this.val == "select":
             return "\t"*indent+"select "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+" where "+this[2].reconstruct(color,indent)+"\n"
-        if this.var:
+        if this.nodeType == "var":
             return this.val.raw
-        if this.val in ["pass","fail","done","break","continue"]:
+        if this.nodeType == "command" and this.val in ["pass","fail","done","break","continue"]:
             return "\t"*indent+this.val.raw+"\n"
-        if len(this) == 0:
+        if len(this) == 0: # Literal or var name.
             return this.val.raw
-        if this.expr:
+        if this.nodeType == "expr":
             return this[0].reconstruct(color,indent)
-        if this.opB:
+        if this.nodeType == "opB":
             return f"({this[0].reconstruct(color,indent)} {this.val.raw} {this[1].reconstruct(color,indent)})"
-        if this.opU:
-            return f"{this[0].reconstruct(color,indent)} ({this[1].reconstruct(color,indent)})"
-        if this.val.isStr: return this.val.raw
-        if this.val.isInt: return this.val.val
+        if this.nodeType == "opU":
+            return f"{this[0].reconstruct(color,indent)}({this[1].reconstruct(color,indent)})"
         raise Exception(f"Unhandled case: could not reconstruct string form of AST node with root: {this.val}")
-        # TODO code for reconstructing original file as str.
-        
-    
+
 
 
 # TODO test parser
@@ -444,9 +445,10 @@ def parse(fileStr):
     s = Seq(tokens,Token("\0",-1))
     return parseProg(s)
 
+
 def parseBlock(s):
     """If no seq is provided, returns an empty block AST (for convenience)"""
-    if s == None: return AST(Token("block",None),[])
+    if s == None: return AST(Token("block",None),[],"block")
     pos = expect(s,"{").pos
     res = []
     while s.peek != "}":
@@ -454,7 +456,7 @@ def parseBlock(s):
         if com != None:
             res.append(com)
     s.pop()
-    return AST(Token("block",pos),res)
+    return AST(Token("block",pos),res,"block")
 
 def parseProg(s):
     res = []
@@ -462,7 +464,7 @@ def parseProg(s):
         com = parseCommand(s)
         if com != None:
             res.append(com)
-    return AST(Token("program",(0,0,0)),res)
+    return AST(Token("program",(0,0,0)),res,"program")
 
 def parseCommand(s):
     res = []
@@ -478,19 +480,19 @@ def parseCommand(s):
             s.pop()
             expr2 = parseExpr(s)
         else:
-            expr2 = AST(Token("1",com.pos,1)) # The expression 'True'
+            expr2 = AST(Token("1",com.pos,1),[],"int") # The expression 'True'
         expect(s,"\n")
-        return AST(com,[var,expr,expr2],command=True)
+        return AST(com,[var,expr,expr2],"command")
     if s.peek in ["pass","fail","done","continue","break"]:
         com = s.pop()
         expect(s,"\n")
-        return AST(com,[],command=True)
-    if s.peek in ["return","bychance"]:
+        return AST(com,[],"command")
+    if s.peek in ["return","bychance","print"]:
         com = s.pop()
         # Take a single expr argument
         expr = parseExpr(s)
         expect(s,"\n")
-        return AST(com,[expr],command=True)
+        return AST(com,[expr],"command")
     if s.peek == "for":
         com = s.pop()
         var = parseVar(s)
@@ -500,7 +502,7 @@ def parseCommand(s):
         expr = parseExpr(s)
         expect(s,"\n")
         block = parseBlock(s)
-        return AST(com,[var,expr,block],command=True)
+        return AST(com,[var,expr,block],"command")
     if s.peek == "if":
         com = s.pop()
         # Result is a series of ASTs: expr, block, expr, block...
@@ -512,7 +514,7 @@ def parseCommand(s):
         res += [expr,block]
         while s.peek == "elif" or s.peek == "else":
             if s.peek == "else":
-                expr = AST(Token("1",s.pop().pos,1)) # The expression 'True'
+                expr = AST(Token("1",s.pop().pos,1),[],"int") # The expression 'True'
                 expect(s,"\n")
                 block = parseBlock(s)
             else: # s.peek == "elif"
@@ -521,25 +523,12 @@ def parseCommand(s):
                 expect(s,"\n")
                 block = parseBlock(s)
             res += [expr,block]
-        return AST(com,res,command=True)
-    if s.peek == "print":
-        com = s.pop()
-        res = []
-        # Either *, _, or a series of expressions.
-        while s.peek != "\n":
-            if s.peek in ["*","_"]:
-                res.append(AST(s.pop(),[]))
-            else:
-                expr = parseExpr(s)
-                res.append(expr)
-        s.pop()
-        return AST(com,res,command=True)
+        return AST(com,res,"command")
     # Default case is var assignOp expr
     var = parseVar(s)
     op = getAssignOp(s)
     expr = parseExpr(s)
-    return AST(Token("set",var.pos,var.val.line),[var,AST(op,[]),expr],command=True)
-
+    return AST(Token("set",var.pos,var.val.line),[var,AST(op,[],"opB"),expr],"command")
 
 
 def expect(s,expected):
@@ -552,7 +541,7 @@ def parseVar(s):
     """Returns a var node"""
     if not s.peek.isVar:
         error(f"Expected varname, got {s.peek}")
-    return AST(s.pop(),[],var=True)
+    return AST(s.pop(),[],"var")
 
 def getAssignOp(s):
     """Expects and returns an assignment operator token."""
@@ -564,7 +553,7 @@ def getAssignOp(s):
 def parseExpr(s):
     """Parses an expression from the stack. Returns an node of type expr."""
     expr = parseExpr1(s)
-    return AST(Token("expr",expr.pos),[expr],expr=True)
+    return AST(Token("expr",expr.pos),[expr],"expr")
     
 
 
@@ -574,7 +563,7 @@ def parseExpr1(s):
     while s.peek == "or":
         op = s.pop()
         expr2 = parseExpr2(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
     
 
@@ -584,7 +573,7 @@ def parseExpr2(s):
     while s.peek == "and":
         op = s.pop()
         expr2 = parseExpr3(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
     
 
@@ -594,7 +583,7 @@ def parseExpr3(s):
     while s.peek in ["==","!=","<=",">=",">","<"]:
         op = s.pop()
         expr2 = parseExpr4(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr4(s):
@@ -603,7 +592,7 @@ def parseExpr4(s):
     while s.peek == ",":
         op = s.pop()
         expr2 = parseExpr5(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr5(s):
@@ -612,7 +601,7 @@ def parseExpr5(s):
     while s.peek in ["to"]:
         op = s.pop()
         expr2 = parseExpr6(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr6(s):
@@ -621,7 +610,7 @@ def parseExpr6(s):
     while s.peek in ["+","-"]:
         op = s.pop()
         expr2 = parseExpr7(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr7(s):
@@ -630,7 +619,7 @@ def parseExpr7(s):
     while s.peek in ["*","//","%","/","."]:
         op = s.pop()
         expr2 = parseExpr8(s)
-        expr = AST(op,[expr,expr2])
+        expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr8(s):
@@ -640,7 +629,7 @@ def parseExpr8(s):
         if op == "!": # '!' is just 'not'
             op.raw = "not"
         expr = parseExpr9(s)
-        return AST(op,[expr])
+        return AST(op,[expr],"opU")
     expr = parseExpr9(s)
     return expr
     
@@ -648,11 +637,13 @@ def parseExpr8(s):
 def parseExpr9(s):
     """expr9 = int | var | string | "(" expr1 ")" """
     if s.peek.isVar:
-        return AST(s.pop(),[],var=True)
-    if s.peek.isInt or s.peek.isStr:
-        return AST(s.pop(),[])
+        return AST(s.pop(),[],"var")
+    if s.peek.isInt:
+        return AST(s.pop(),[],"int")
+    if s.peek.isStr:
+        return AST(s.pop(),[],"str")
     if s.peek != "(":
-        error(f"While parsing an expression, expected a value or '(', got: {s.peek}")
+        error(f"While parsing an expression, expected a value, '(', or a unary operator. Got: {s.peek}")
     s.pop()
     expr = parseExpr1(s)
     expect(s,")")

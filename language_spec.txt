@@ -37,7 +37,7 @@ note that linebreaks are considered part of multi-line comments, and multi-line 
 prog = {command} .
 block = "{" {command} "}" .
 
-var = <see token list>. Includes '_' and '$'
+var = <see token list>. Includes special variables: '_' and '$'
 int = <see token list>
 str = <see token list>
 
@@ -52,7 +52,7 @@ command = "\n"
 		| "for" var ("in" | "from") expr "\n" block
 		| "if" expr "\n" block [elseOptions]
 		| "bychance" expr "\n"
-		| "print" {expr} "\n"
+		| "print" expr "\n"
 		| var assignOp expr .
 
 assignOp = "=" | "+=" | "-=" | "*=" 
