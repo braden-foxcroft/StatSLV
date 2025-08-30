@@ -1,7 +1,11 @@
 
 
 """
-
+Important methods:
+setColor(bool) determines if the module uses color for console prints. 
+deAlias(ast) returns an AST without inline 'select' statements.
+addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
+    'id' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
 
 from parser import AST,Token,parse,t1,t2,t3
@@ -10,7 +14,6 @@ from parser import AST,Token,parse,t1,t2,t3
 
 # A file for carrying out static analysis. Modifies the AST to be easier to execute, and to track when variables should vanish.
 
-# TODO move 'select' function calls to separate lines,
 # TODO code for figuring out which lines run before/after which lines,
 # code for tracking variable use, add 'discard' attribute to command nodes for when variables are no longer used.
 # TODO aggregate all var names, add mapping of var names to integers.
@@ -22,6 +25,7 @@ def setColor(newColor=True):
     color = newColor
 # TODO implement color in this module.
 
+# Code for de-aliasing below.
 def deAlias(ast):
     """A function which removes aliases from an AST.
     At the moment, only affects 'select' function/unary operator calls."""
@@ -45,9 +49,6 @@ def deAliasSelect(ast):
     res.append(AST(ast.val,newChildren,"command"))
     return res
 
-
-
-
 def deAliasExpr(node,nextFree,exprRoot):
     """A recursive function which de-aliases expressions.
     takes an AST (expr or sub-expr) and an int (saying what ~number~ var is free next).
@@ -67,3 +68,39 @@ def deAliasExpr(node,nextFree,exprRoot):
     return AST(node.val,children,node.nodeType),pairs,nextFree
 
 
+def findVarNames(ast):
+    """Takes an ast, returns a sorted non-repeating list of var names."""
+    varList = ast.filter(lambda node : node.nodeType == "var")
+    varSet = set([var.val.raw for var in varList])
+    varSet = varSet - {"_"}
+    return sorted(varSet)
+    
+class VarMapping:
+    """A class which maps vars to ints, and vice-versa.
+    To construct, provide a non-duplicated list of vars.
+    To use, provide obj[var] or obj[int] to get the corresponding value."""
+    def __init__(this,varList):
+        d = dict()
+        for i in range(0,len(varList)):
+            d[varList[i]] = i
+            d[i] = varList[i]
+            # Note: no conflict because vars are str and ints are int.
+        this._dict = d
+        this._len = len(varList)
+    def __getitem__(this,item): return this._dict[item]
+    def __len__(this): return this._len
+
+def tagVars(ast,m):
+    """Takes an ast and VarMapping,
+    modifies the ast so that vars have an 'id' tag corresponding to the var number."""
+    # TODO
+
+def addMetadata(ast):
+    """modifies the AST by adding 'discard' attributes to commands,
+    'id' attributes to 'var' objects, and the 'varCount' attribute to the program root.
+    No return value."""
+    # TODO
+    varNames = findVarNames(ast)
+    m = VarMapping(varNames)
+    
+    

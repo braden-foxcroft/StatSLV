@@ -364,13 +364,20 @@ class AST:
         return res
     
     def filter(this,function = lambda node : True):
-        """Returns a list of AST nodes for which function(node) returns True"""
+        """Returns a list of AST nodes for which function(node) returns True."""
         res = []
         if function(this):
             res.append(this)
         for child in this:
             res += child.filter(function)
         return res
+    
+    def forAll(this,function = lambda node : None):
+        """Applies a mutation function upon every node. Applies to the root first."""
+        function(this)
+        for child in this:
+            child.forAll(function)
+        return
     
     def modify(this,function = lambda node: [node]):
         """Modifies the AST by applying 'function' to each command node, and replacing the command in the list with
