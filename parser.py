@@ -15,7 +15,7 @@ def inp():
     return sys.stdin.read()
 t1 = 'for i from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
 t2 = 'for program from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
-
+t3 = 'if select(1 to 3) == 1\n\ti = select(select(1,3),select(4,6))'
 
 class PosChar:
     """A character with an attached pos.
@@ -312,9 +312,11 @@ class AST:
     def __init__(this,val,children,nodeType):
         """Takes the value at the node (a token), and a list of however many AST children the the node requires.
         'nodeType' should be string, like program, block, command, expr, opB, opU, var, int, str"""
-        if not isinstance(val,Token): raise Exception("AST val must be of type Token!")
+        if not isinstance(val,Token): raise Exception(f"AST val must be of type Token! (Got type {type(val)} instead of {Token})")
+        if not isinstance(children,list): raise Exception(f"AST children must be of type 'list'! (Got type {type(children)} instead)")
         for child in children:
-            if not isinstance(child,AST): raise Exception("AST children must be AST nodes as well!")
+            if not isinstance(child,AST): raise Exception(f"AST children must be AST nodes as well! (Got type {type(child)} instead)")
+        if not isinstance(nodeType,str): raise Exception(f"AST nodeType must be of type 'str'! (Got type {type(nodeType)} instead)")
         this._val = val
         this._children = list(children)
         validTypes = ["program","block","command","expr","opB","opU","var","int","str"]
@@ -432,7 +434,7 @@ class AST:
         if this.nodeType == "opB":
             return f"({this[0].reconstruct(color,indent)} {this.val.raw} {this[1].reconstruct(color,indent)})"
         if this.nodeType == "opU":
-            return f"{this[0].reconstruct(color,indent)}({this[1].reconstruct(color,indent)})"
+            return f"{this.val.raw}({this[0].reconstruct(color,indent)})"
         raise Exception(f"Unhandled case: could not reconstruct string form of AST node with root: {this.val}")
 
 
@@ -552,8 +554,9 @@ def getAssignOp(s):
 
 def parseExpr(s):
     """Parses an expression from the stack. Returns an node of type expr."""
+    pos = s.peek.pos
     expr = parseExpr1(s)
-    return AST(Token("expr",expr.pos),[expr],"expr")
+    return AST(Token("expr",pos),[expr],"expr")
     
 
 

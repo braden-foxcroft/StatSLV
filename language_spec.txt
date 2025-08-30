@@ -37,7 +37,7 @@ note that linebreaks are considered part of multi-line comments, and multi-line 
 prog = {command} .
 block = "{" {command} "}" .
 
-var = <see token list>. Includes special variables: '_' and '$'
+var = <see token list>. Includes special variables: '_' and '$'.
 int = <see token list>
 str = <see token list>
 
