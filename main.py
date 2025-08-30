@@ -13,6 +13,7 @@ parser.add_argument('file', action="store",help="The file to run.")
 parser.add_argument('--noDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
 parser.add_argument('--reconstruct', action="store_true",help="Display the original program, as interpreted by the parser.")
 parser.add_argument('-p',action='store',help="Display the result as a percentage rounded to 'P' decimal places")
+parser.add_argument('-P',action='store_true',help="Display the result as a percentage")
 parser.add_argument('-f',action='store_true',help="Used if '-p' is present; also print the fractional result.")
 parser.add_argument('-silent',action='store_true',help="Don't warn about converting cases to fail or pass.")
 args = parser.parse_args()
@@ -291,8 +292,10 @@ if d._returns:
     print("TODO implement returns")
     exit()
 res = Frac(d._pass,d._pass+d._fail)
+if args.P:
+    print(float(res*100),"%",sep="")
 if args.p != None:
     print(round(float(res*100),args.p),"%",sep="")
-if args.p == None or args.f:
+if args.p == None or args.P == False or args.f:
     print(res)
 exit(0)

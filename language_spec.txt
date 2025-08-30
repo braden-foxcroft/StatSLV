@@ -1,4 +1,6 @@
 
+# TODO where, arrays (or psuedo-arrays)
+
 
 tokens:
 	operators, brackets, and assignment:

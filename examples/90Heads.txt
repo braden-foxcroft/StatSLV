@@ -1,9 +1,9 @@
 
 sum = 0
-for i from 1 to 99
+for i from 1 to 100
 	sum = sum + select(0 to 1)
 
-if sum >= 99
+if sum >= 90
 	pass
 else
 	fail
