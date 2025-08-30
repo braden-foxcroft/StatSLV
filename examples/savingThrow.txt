@@ -20,4 +20,3 @@ else
 
 #print coin + " and " + (""+roll)
 #print ""
-#print coin + " and " + (""+roll)

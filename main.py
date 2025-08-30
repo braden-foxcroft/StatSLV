@@ -68,6 +68,12 @@ class Contexts:
         return this
     def __repr__(this):
         return repr(this._cons)
+    def assign(this,var,val):
+        """Creates a new context, assigning the val to the var"""
+        c = Contexts()
+        for con,odds in this:
+            c += setVar(con,var,val),odds
+        return c
 
 def setVar(con,index,val):
     """Set a context var to a value. Returns a new tuple."""
@@ -126,7 +132,30 @@ def runCommand(ast,varLookup,data,conts):
         return Contexts()
     elif ast.val == "for":
         # TODO
-        error("'for' not implemented")
+        blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
+        for con,odds in conts:
+            # Find range
+            rng = doEval(ast[1],con)
+            if not isinstance(rng,tuple):
+                error("'for' loop expr did not return list:\n"+var.val.line)
+            blocks[rng] += con,odds
+        newConts = Contexts()
+        for block in blocks:
+            subConts = blocks[block]
+            for i in block:
+                subConts = subConts.assign(ast[0].varId,i)
+                subConts = runBlock(ast[2],varLookup,data,subConts)
+            newConts = newConts + subConts
+        return newConts
+    elif ast.val == "bychance":
+        newConts = Contexts()
+        for con,odds in conts:
+            valid = doEval(ast[0],con)
+            if not isinstance(valid,int):
+                error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
+            if valid != 0:
+                newConts += con,odds
+        return newConts
     elif ast.val == "if":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,odds in conts:
@@ -255,7 +284,7 @@ if d._done != 0:
         if not args.silent: print("All 'done' results marked 'pass'")
         d._done,d._pass = Frac(0,1),d._done
     if not d._fail and not d._pass:
-        error("No passes, fails, or dones!")
+        error("No passes, fails, or returns!")
 if d._returns:
     if d._done or d._pass:
         error("Cannot mix pass/fail and return!")
