@@ -46,8 +46,6 @@ command = "\n"
 		| "pass" "\n"
 		| "fail" "\n"
 		| "done" "\n"
-		| "break" "\n"
-		| "continue" "\n"
 		| "return" expr "\n"
 		| "for" var ("in" | "from") expr "\n" block
 		| "if" expr "\n" block [elseOptions]
@@ -55,7 +53,7 @@ command = "\n"
 		| "print" expr "\n"
 		| var assignOp expr .
 
-assignOp = "=" | "+=" | "-=" | "*=" 
+assignOp = "="
 
 
 

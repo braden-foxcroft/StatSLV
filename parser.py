@@ -13,9 +13,13 @@ def inp():
     import sys
     print("Quit with ctrl-z and enter (on Windows) or ctrl-d (I think?) on linux.\nEnter file below:")
     return sys.stdin.read()
-t1 = 'for i from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
-t2 = 'for program from 1 to 3\n\ti += 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
+t1 = 'for i from 1 to 3\n\ti = i + 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
+t2 = 'for program from 1 to 3\n\ti = i + 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
 t3 = 'if select(1 to 3) == 1\n\ti = select(select(1,3),select(4,6))'
+t4 = 'j = 0\nfor i from 1 to 3\n\tj = j + i'
+t5 = 'q = 0\ni = 1\nfor j from 1 to 5\n\tif i < 10\n\t\ti = i + j\nprint "abc"\n'
+t6 = 'i = 1\nj = 2\nk = i + j\n'
+
 
 class PosChar:
     """A character with an attached pos.
@@ -90,8 +94,8 @@ class Token:
     whether it's a keyword and/or operator, and its type (int literal, varname, str literal)"""
     
     # A set of keyword and operator literals.
-    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "+=", "-=", "*=","(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "break", "continue", "bychance", "print", "{", "}", "\n"}
+    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "(",")","."}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "{", "}", "\n"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -323,10 +327,14 @@ class AST:
         if nodeType not in validTypes:
             raise Exception(f"Expected node of one of these types: {validTypes}\nGot node of type {repr(nodeType)}")
         this._type = nodeType
+        this.discards = {}
     
     def __eq__(this,other):
-        """Checks if the other equals the token value"""
-        return this._val == other
+        """Checks if this is the same as the other."""
+        return this is other
+    def __hash__(this):
+        """The object ID"""
+        return id(this)
     
     def __iter__(this): return iter(this._children)
     
@@ -397,25 +405,25 @@ class AST:
         
     
     
-    def reconstruct(this,color=False,indent=0):
+    def reconstruct(this,color=False,indent=0,func=lambda command : ""):
         """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting. 'indent' determines the working level of indentation."""
         # TODO implement color.
         res = ""
         if this.nodeType == "program":
             for child in this:
-                res += child.reconstruct(color,indent)
+                res += child.reconstruct(color,indent,func)
             return res + "\n"
         if this.nodeType == "block":
             for child in this:
-                res += child.reconstruct(color,indent+1)
+                res += child.reconstruct(color,indent+1,func)
             return res
         if this.nodeType == "command" and this.val == "for":
-            res += "\t"*indent+"for "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+"\n"
-            res += this[2].reconstruct(color,indent)
+            res += "\t"*indent+str(func(this))+"for "+this[0].reconstruct(color,indent,func)+" from "+this[1].reconstruct(color,indent,func)+"\n"
+            res += this[2].reconstruct(color,indent,func)
             return res
         if this.nodeType == "command" and this.val == "if":
-            res += "\t"*indent+"if "+this[0].reconstruct(color,indent)+"\n"
-            res += this[1].reconstruct(color,indent)
+            res += "\t"*indent+str(func(this))+"if "+this[0].reconstruct(color,indent,func)+"\n"
+            res += this[1].reconstruct(color,indent,func)
             # Create an iterator which skips the first 2 elements
             i = iter(this)
             next(i)
@@ -423,25 +431,27 @@ class AST:
             # Iterate over the remaining children
             for condition in i:
                 block = next(i) # If this fails, the AST node is poorly formatted. The children are consecutive expr, block pairs.
-                res += "\t"*indent+"elif "+condition.reconstruct(color,indent)+"\n"
-                res += block.reconstruct(color,indent)
+                res += "\t"*indent+"elif "+condition.reconstruct(color,indent,func)+"\n"
+                res += block.reconstruct(color,indent,func)
             return res
         if this.nodeType == "command" and this.val == "set":
-            return "\t"*indent+this[0].reconstruct(color,indent)+" "+this[1].reconstruct(color,indent)+" "+this[2].reconstruct(color,indent)+"\n"
+            return "\t"*indent+str(func(this))+this[0].reconstruct(color,indent,func)+" "+this[1].reconstruct(color,indent,func)+" "+this[2].reconstruct(color,indent,func)+"\n"
         if this.nodeType == "command" and this.val == "select":
-            return "\t"*indent+"select "+this[0].reconstruct(color,indent)+" from "+this[1].reconstruct(color,indent)+" where "+this[2].reconstruct(color,indent)+"\n"
+            return "\t"*indent+str(func(this))+"select "+this[0].reconstruct(color,indent,func)+" from "+this[1].reconstruct(color,indent,func)+" where "+this[2].reconstruct(color,indent,func)+"\n"
         if this.nodeType == "var":
             return this.val.raw
-        if this.nodeType == "command" and this.val in ["pass","fail","done","break","continue"]:
-            return "\t"*indent+this.val.raw+"\n"
+        if this.nodeType == "command" and this.val in ["pass","fail","done"]:
+            return "\t"*indent+str(func(this))+this.val.raw+"\n"
+        if this.nodeType == "command" and this.val in ["return","print"]:
+            return "\t"*indent+str(func(this))+this.val.raw + " " + this[0].reconstruct(color,indent,func) + "\n"
         if len(this) == 0: # Literal or var name.
             return this.val.raw
         if this.nodeType == "expr":
-            return this[0].reconstruct(color,indent)
+            return this[0].reconstruct(color,indent,func)
         if this.nodeType == "opB":
-            return f"({this[0].reconstruct(color,indent)} {this.val.raw} {this[1].reconstruct(color,indent)})"
+            return f"({this[0].reconstruct(color,indent,func)} {this.val.raw} {this[1].reconstruct(color,indent,func)})"
         if this.nodeType == "opU":
-            return f"{this.val.raw}({this[0].reconstruct(color,indent)})"
+            return f"{this.val.raw}({this[0].reconstruct(color,indent,func)})"
         raise Exception(f"Unhandled case: could not reconstruct string form of AST node with root: {this.val}")
 
 
@@ -492,7 +502,7 @@ def parseCommand(s):
             expr2 = AST(Token("1",com.pos,1),[],"int") # The expression 'True'
         expect(s,"\n")
         return AST(com,[var,expr,expr2],"command")
-    if s.peek in ["pass","fail","done","continue","break"]:
+    if s.peek in ["pass","fail","done"]:
         com = s.pop()
         expect(s,"\n")
         return AST(com,[],"command")
@@ -554,8 +564,8 @@ def parseVar(s):
 
 def getAssignOp(s):
     """Expects and returns an assignment operator token."""
-    if s.peek not in ["=","+=","-=","*="]:
-        error(f"Expected assignment operator (=,+=,-=,*=), got {s.peek}")
+    if s.peek not in ["="]:
+        error(f"Expected assignment operator (=), got {s.peek}")
     return s.pop()
 
 

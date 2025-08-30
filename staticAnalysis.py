@@ -5,18 +5,33 @@ Important methods:
 setColor(bool) determines if the module uses color for console prints. 
 deAlias(ast) returns an AST without inline 'select' statements.
 addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
-    'id' attributes to 'var' objects, and the 'varCount' attribute to the program root.
+    'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
 
 from parser import AST,Token,parse,t1,t2,t3
+from collections import deque
 # Token(raw,pos,line,val=None)
 # AST(root : Token, children : [AST], type : str)
 
 # A file for carrying out static analysis. Modifies the AST to be easier to execute, and to track when variables should vanish.
 
-# TODO code for figuring out which lines run before/after which lines,
-# code for tracking variable use, add 'discard' attribute to command nodes for when variables are no longer used.
-# TODO aggregate all var names, add mapping of var names to integers.
+# Testing code
+# TODO remove
+def testExample(exampleStr):
+    p = addMetadata(deAlias(parse(exampleStr)))
+    print("code:")
+    print(p.reconstruct())
+    print("discards:")
+    print(p.reconstruct(func = lambda n:n.discards))
+    print("varsUsed:")
+    print(p.reconstruct(func = lambda n:n.varsUsed))
+    print("varsNeeded:")
+    print(p.reconstruct(func = lambda n:n.varsNeeded))
+    print("varsMade:")
+    print(p.reconstruct(func = lambda n:n.varsMade))
+    print("prevs:")
+    print(p.reconstruct(func = lambda n:[prev.val.raw for prev in n.prevs]))
+
 
 color = False
 def setColor(newColor=True):
@@ -32,13 +47,14 @@ def deAlias(ast):
     return ast.modify(deAliasSelect)
 
 def deAliasSelect(ast):
+    """Takes an command AST node. Returns a list of command AST nodes, where any in-line 'select' calls are split onto previous lines."""
     newChildren = [] # The new children
     toSelect = [] # A list of var-expr pairs, where 'select var from expr' needs to be added before the command.
     nextFree = 0 # The next free ~1~ var name to use.
     for child in ast:
         if child.nodeType == "expr":
             newChild,toSelectAdd,nextFree = deAliasExpr(child,nextFree,child)
-            newChildren += newChild
+            newChildren.append(newChild)
             toSelect += toSelectAdd
         else:
             newChildren.append(child)
@@ -90,17 +106,169 @@ class VarMapping:
     def __getitem__(this,item): return this._dict[item]
     def __len__(this): return this._len
 
-def tagVars(ast,m):
+class Queue:
+    def __init__(this):
+        this._q = deque()
+    def push(this,val):
+        this._q.append(val)
+    def pop(this):
+        return this._q.popleft()
+    def __len__(this): return len(this._q)
+    def __iadd__(this,vals):
+        """Adds multiple values to the queue. Uses any iterable, except an AST"""
+        if isinstance(vals,AST): raise Exception("Attemped to += an AST to a queue")
+        for val in vals:
+            this.push(val)
+        return this
+    def __repr__(this):
+        return "Queue(" + repr(this._q) + ")"
+    def __bool__(this): return len(this) > 0
+    def __contains__(this,val): return val in this._q
+
+def tagVars(m):
     """Takes an ast and VarMapping,
-    modifies the ast so that vars have an 'id' tag corresponding to the var number."""
-    # TODO
+    modifies the ast so that vars have an 'varId' tag corresponding to the var number.
+    Takes a mapping, returns a function which modifies and AST"""
+    def mapVals(ast):
+        if ast.nodeType != "var": return
+        ast.varId = m[ast.val.raw]
+        return
+    return mapVals
+
+def addCommandDefaults(ast):
+    """Takes an AST node, and if it's a command, adds:
+    prevs : set, # The AST command nodes which can run immediately before.
+    nexts : set, # The AST command nodes which can run immediately after.
+    varsUsed : set, # The vars used by this command
+    varsNeeded : set, # The vars which have to be retained after this command finishes.
+    varsHad : set, # The vars which may exist at this moment in time.
+    varsMade : set, # The vars created directly by this specific line of code
+    discards : set # The vars which exist and don't need to at this moment in time."""
+    if ast.nodeType != "command": return
+    ast.prevs = set()
+    ast.nexts = set()
+    ast.varsUsed = set()
+    ast.varsNeeded = set() # TODO
+    ast.varsHad = set() # TODO
+    ast.varsMade = set()
+    ast.discards = set() # TODO
+    return
+
+def varUseAndAssign(ast):
+    """Takes an AST, and if its a command, populates the varsUsed and varsMade values"""
+    if ast.nodeType != "command": return
+    # varsUsed
+    varsUsed = []
+    for child in ast:
+        if child.nodeType == "expr":
+            varsUsed += child.filter(lambda node : node.nodeType == "var")
+    varsUsed = [var.val.raw for var in varsUsed]
+    ast.varsUsed = set(varsUsed)
+    # varsMade
+    varsMade = []
+    if ast.val in ["set","select","for"]:
+        varsMade.append(ast[0].val.raw)
+    elif ast.val == "select":
+        varsMade.append(ast[0].val.raw)
+    ast.varsMade = set(varsMade)
+    ast.varsMade = ast.varsMade - {"$","_"}
+    return
+
+
+
+def determinePrevs(ast,prev=set()):
+    """Takes an AST, modifies the 'prevs' values so that each command knows what can precede the command.
+    Optionally takes the previous command list, if available.
+    Returns a list of the commands which can happen at the end of this command.
+    (For simple commands, it is just iself. For more complicated commands, it may be the command plus the last command in each block.)"""
+    if ast.nodeType == "program" or ast.nodeType == "block":
+        nexts = prev
+        for command in ast:
+            command.prevs |= nexts
+            nexts = determinePrevs(command)
+        return nexts
+    if ast.val == "if":
+        res = {ast}
+        for child in ast:
+            if child.nodeType != "block": continue
+            res |= determinePrevs(child,{ast})
+        return res
+    if ast.val == "for":
+        # TODO 'for' prev for end of block is start of block
+        res = {ast}
+        block = ast[2]
+        blockNexts = determinePrevs(block,{ast})
+        if len(block) > 0:
+            block[0].prevs |= blockNexts
+        return res | blockNexts
+    if ast.val in ["pass","fail","return","done"]:
+        return set()
+    return {ast}
+    
+def setNexts(ast):
+    """Sets nexts of prev commands."""
+    if ast.nodeType != "command": return
+    for nxt in ast.prevs:
+        nxt.nexts |= {ast}
+    return
+
+def getVarsNeeded(ast):
+    """Populates 'varsNeeded' for all commands in an AST"""
+    q = Queue()
+    q += ast.filter(lambda node: node.nodeType == "command")
+    while q:
+        com = q.pop()
+        varsHere = com.varsUsed | (com.varsNeeded - com.varsMade)
+        # Add each var for each prev. If a var is added, prev is also added to the queue, if not present.
+        for var in varsHere:
+            for prev in com.prevs:
+                if var not in prev.varsNeeded:
+                    prev.varsNeeded |= {var}
+                    if prev not in q: q.push(prev)
+    return
+
+def getVarsHad(ast):
+    """Populates 'varsHad' and 'discards' for all commands in an AST"""
+    q = Queue()
+    q += ast.filter(lambda node: node.nodeType == "command")
+    while q:
+        com = q.pop()
+        varsHad = com.varsHad | com.varsMade
+        com.discards |= (varsHad - com.varsNeeded)
+        com.varsHad = varsHad & com.varsNeeded
+        # Add each var for each prev. If a var is added, prev is also added to the queue, if not present.
+        for var in com.varsHad:
+            for nxt in com.nexts:
+                if var not in nxt.varsHad:
+                    nxt.varsHad |= {var}
+                    if nxt not in q: q.push(nxt)
+    return
+
 
 def addMetadata(ast):
     """modifies the AST by adding 'discard' attributes to commands,
-    'id' attributes to 'var' objects, and the 'varCount' attribute to the program root.
-    No return value."""
-    # TODO
+    'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
+    Adds 'jump' tag to tell where each 'break' or 'continue' ends up.
+    Returns the ast and the mapping."""
     varNames = findVarNames(ast)
     m = VarMapping(varNames)
-    
-    
+    ast.forAll(tagVars(m))
+    ast.varCount = len(m)
+    # TODO overall task: calculate the discard values.
+    ast.forAll(addCommandDefaults)
+    # Get the vars used on each line, and which are assigned. Ignore '_' and '$'
+    ast.forAll(varUseAndAssign)
+    # Figure out which lines precede which lines. Note that 'for' loops have unconventional ordering.
+    determinePrevs(ast)
+    # Add 'nexts' based on the 'prevs'
+    ast.forAll(setNexts)
+    # determines varsNeeded.
+    getVarsNeeded(ast)
+    # determines varsHad, discards
+    getVarsHad(ast)
+    return ast,m
+
+
+
+
+
