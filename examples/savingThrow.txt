@@ -1,0 +1,23 @@
+
+# To survive a saving roll, the player must flip a coin and roll a die.
+# If the coin is heads and/or the die is 6, the player lives.
+# Given that the player lived, what were the odds that the coin toss was heads?
+
+select coin from "tails","heads"
+select roll from 1 to 6
+
+if coin == "heads" or roll == 6
+	win = "yes"
+else
+	win = "no"
+
+bychance win == "yes"
+
+if coin == "heads"
+	pass
+else
+	fail
+
+#print coin + " and " + (""+roll)
+#print ""
+#print coin + " and " + (""+roll)

@@ -148,10 +148,10 @@ def addCommandDefaults(ast):
     ast.prevs = set()
     ast.nexts = set()
     ast.varsUsed = set()
-    ast.varsNeeded = set() # TODO
-    ast.varsHad = set() # TODO
+    ast.varsNeeded = set()
+    ast.varsHad = set()
     ast.varsMade = set()
-    ast.discards = set() # TODO
+    ast.discards = set() # TODO add 'int' version of discards, for efficiency.
     return
 
 def varUseAndAssign(ast):

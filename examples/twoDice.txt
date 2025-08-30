@@ -1,0 +1,10 @@
+
+
+# What are the odds that the sum of two dice rolls is 7?
+
+select rollA from 1 to 6
+select rollB from 1 to 6
+if rollA + rollB == 7
+	pass
+else
+	fail

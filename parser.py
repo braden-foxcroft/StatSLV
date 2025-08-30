@@ -7,13 +7,13 @@ The AST class contains some of the static analysis code.
 """
 
 
-# TODO remove
+# TODO remove, for testing purposes only.
 def inp():
     """Get a file from the command line. Used for testing, before the main module is built."""
     import sys
     print("Quit with ctrl-z and enter (on Windows) or ctrl-d (I think?) on linux.\nEnter file below:")
     return sys.stdin.read()
-t1 = 'for i from 1 to 3\n\ti = i + 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
+t1 = 'for i from 1 to 3\n\ti = i + 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\ti = 0\ndone\nfail\npass\n'
 t2 = 'for program from 1 to 3\n\ti = i + 1 + 2 + 3 * i // 2\n\tif i != 32\n\t\tbreak\ndone\nfail\npass\n'
 t3 = 'if select(1 to 3) == 1\n\ti = select(select(1,3),select(4,6))'
 t4 = 'j = 0\nfor i from 1 to 3\n\tj = j + i'
@@ -483,7 +483,10 @@ def parseProg(s):
         com = parseCommand(s)
         if com != None:
             res.append(com)
+    res.append(AST(Token("done",-1,"Program done"),[],"command"))
     return AST(Token("program",(0,0,0)),res,"program")
+
+# TODO the 'True'
 
 def parseCommand(s):
     res = []
@@ -499,7 +502,7 @@ def parseCommand(s):
             s.pop()
             expr2 = parseExpr(s)
         else:
-            expr2 = AST(Token("1",com.pos,1),[],"int") # The expression 'True'
+            expr2 = AST(Token("1",com.pos,com.line,1),[],"int") # The expression 'True'
         expect(s,"\n")
         return AST(com,[var,expr,expr2],"command")
     if s.peek in ["pass","fail","done"]:
@@ -533,7 +536,7 @@ def parseCommand(s):
         res += [expr,block]
         while s.peek == "elif" or s.peek == "else":
             if s.peek == "else":
-                expr = AST(Token("1",s.pop().pos,1),[],"int") # The expression 'True'
+                expr = AST(Token("1",s.peek.pos,s.pop().line,1),[],"int") # The expression 'True'
                 expect(s,"\n")
                 block = parseBlock(s)
             else: # s.peek == "elif"
