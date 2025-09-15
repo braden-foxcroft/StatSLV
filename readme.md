@@ -16,7 +16,7 @@ If you don't have python, you'll have to install it first. The command should be
 - Automatic variable discards (when a variable is no longer used, its value should be discarded automatically, causing branches to unify earlier)
 - A fair bit of testing (sooo much testing)
 - A text debugger, so you can see what your code is doing
-- Maybe even a GUI debugger? That would probably be more work than its worth, though.
+- Maybe even a GUI debugger? That would probably be more work than it's worth, though.
 - Better `print` statements, so you can see what your code is doing. I'm not convinced this is particularly feasible, though. Especially when you combine `print` statements and `for` loops where different paths loop over different ranges, the code execution order becomes somewhat hard to make sense of.
 - User input? How would input even work in a multi-path execution?
 - Better documentation and further examples
