@@ -1,0 +1,16 @@
+
+
+select a from 1 to 3
+select b from 1 to 3
+select c from 1 to 3
+
+print "hi"
+print ""
+print a
+print ""
+print "hi"
+print ""
+print b
+print ""
+print "hi"
+

@@ -12,34 +12,36 @@ addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
 
 from parser import AST,Token,parse,t1,t2,t3
 from collections import deque
+from color import *
 # Token(raw,pos,line,val=None)
 # AST(root : Token, children : [AST], type : str)
 
 # A file for carrying out static analysis. Modifies the AST to be easier to execute, and to track when variables should vanish.
 
+def showDiscards(exampleStr):
+    """Shows the static analysis info from code, for discards only"""
+    p,m = addMetadata(deAlias(parse(exampleStr)))
+    print(red("discards:"))
+    print(p.reconstruct(funcArg = lambda n:n.discards or None))
+
 def testExample(exampleStr):
     """Shows the static analysis info from the code, so you can see how things worked"""
     p,m = addMetadata(deAlias(parse(exampleStr)))
-    print("code:")
+    print(red("code:"))
     print(p.reconstruct())
-    print("discards:")
-    print(p.reconstruct(func = lambda n:n.discards))
-    print("varsUsed:")
-    print(p.reconstruct(func = lambda n:n.varsUsed))
-    print("varsNeeded:")
-    print(p.reconstruct(func = lambda n:n.varsNeeded))
-    print("varsMade:")
-    print(p.reconstruct(func = lambda n:n.varsMade))
-    print("prevs:")
-    print(p.reconstruct(func = lambda n:[prev.val.raw for prev in n.prevs]))
+    print(red("discards:"))
+    print(p.reconstruct(funcArg = lambda n:n.discards or None))
+    print(red("varsUsed:"))
+    print(p.reconstruct(funcArg = lambda n:n.varsUsed or None))
+    print(red("varsNeeded:"))
+    print(p.reconstruct(funcArg = lambda n:n.varsNeeded or None))
+    print(red("varsMade:"))
+    print(p.reconstruct(funcArg = lambda n:n.varsMade or None))
+    print(red("prevs:"))
+    print(p.reconstruct(funcArg = lambda n:[prev.val.raw for prev in n.prevs] or None))
+    print(red("discards (int):"))
+    print(p.reconstruct(funcArg = lambda n:n.discardsInt or None))
 
-
-color = False
-def setColor(newColor=True):
-    """Determines if functions in this module use color when generating text."""
-    global color
-    color = newColor
-# TODO implement color in this module.
 
 # Code for de-aliasing below.
 def deAlias(ast):
@@ -62,7 +64,7 @@ def deAliasSelect(ast):
     res = []
     trueAst = AST(Token("expr",ast.val.pos,"'select' statement macro put on separate line."),[AST(Token("1",ast.val.pos,val=1),[],"int")],"expr")
     for var,expr in toSelect:
-        res.append(AST(Token("select",var.val.pos,f"select ({var}) from {expr.reconstruct(color,0)}"),[var,expr,trueAst],"command"))
+        res.append(AST(Token("select",var.val.pos,f"select ({var}) from {expr.reconstruct(0)}"),[var,expr,trueAst],"command"))
     res.append(AST(ast.val,newChildren,"command"))
     return res
 
@@ -152,7 +154,8 @@ def addCommandDefaults(ast):
     ast.varsNeeded = set()
     ast.varsHad = set()
     ast.varsMade = set()
-    ast.discards = set() # TODO add 'int' version of discards, for efficiency.
+    ast.discards = set()
+    ast.discardsInt = set()
     return
 
 def varUseAndAssign(ast):
@@ -195,7 +198,7 @@ def determinePrevs(ast,prev=set()):
             res |= determinePrevs(child,{ast})
         return res
     if ast.val == "for":
-        # TODO 'for' prev for end of block is start of block
+        # 'for' prev for end of block is start of block
         res = {ast}
         block = ast[2]
         blockNexts = determinePrevs(block,{ast})
@@ -245,6 +248,14 @@ def getVarsHad(ast):
                     if nxt not in q: q.push(nxt)
     return
 
+def getIntDiscards(ast,m):
+    """Takes an AST and a mapper. Adds int version of discards to each needed node."""
+    for node in ast.filter(lambda node: node.nodeType == "command"):
+        for disc in node.discards:
+            node.discardsInt.add(m[disc])
+    return
+
+
 
 def addMetadata(ast):
     """modifies the AST by adding 'discard' attributes to commands,
@@ -255,7 +266,7 @@ def addMetadata(ast):
     m = VarMapping(varNames)
     ast.forAll(tagVars(m))
     ast.varCount = len(m)
-    # TODO overall task: calculate the discard values.
+    # Overall task: calculate the discard values.
     ast.forAll(addCommandDefaults)
     # Get the vars used on each line, and which are assigned. Ignore '_' and '$'
     ast.forAll(varUseAndAssign)
@@ -267,6 +278,7 @@ def addMetadata(ast):
     getVarsNeeded(ast)
     # determines varsHad, discards
     getVarsHad(ast)
+    getIntDiscards(ast,m)
     return ast,m
 
 

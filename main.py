@@ -2,25 +2,37 @@
 # TODO implement '_' and '$' var
 
 from parser import parse,error
-from staticAnalysis import deAlias,addMetadata,testExample
+from staticAnalysis import deAlias,addMetadata,testExample,showDiscards
 import argparse
 from collections import defaultdict
 from fractions import Fraction
+from color import *
 dd = lambda : defaultdict(lambda : Frac(0,1))
 Frac = Fraction
 
+import os
+os.system("") # Turns on color codes, if needed. A hacky solution, though.
+
 parser = argparse.ArgumentParser(description="An interpreter for the StatSLV programming language.")
 parser.add_argument('file', action="store",help="The file to run.")
-parser.add_argument('-DebugNoDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
-parser.add_argument('-DebugStaticAnalysis', action="store_true",help="Show a debug of the program in various stages of static analysis.")
+parser.add_argument('-nd','-DebugNoDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
+parser.add_argument('-DebugStaticAnalysis','-DSA', action="store_true",help="Show a debug of the program in various stages of static analysis.")
+parser.add_argument('-DebugDiscards','-DD', action="store_true",help="Show a debug of the discards of the program")
 parser.add_argument('--reconstruct', action="store_true",help="Display the original program, as interpreted by the parser.")
 parser.add_argument('-p',action='store',help="Display the result as a percentage rounded to 'P' decimal places")
 parser.add_argument('-P',action='store_true',help="Display the result as a percentage")
 parser.add_argument('-f',action='store_true',help="Used if '-p' is present; also print the fractional result.")
 parser.add_argument('-noAgg',action='store_true',help="Don't aggregate print statements.")
 parser.add_argument('-silent',action='store_true',help="Don't warn about converting cases to fail or pass.")
+parser.add_argument('-NoColor','-nc',action='store_true',help="Don't include color in printouts.")
 args = parser.parse_args()
 #print(args)
+
+# No discards
+nd = args.nd
+
+if args.NoColor:
+    Color.doColor = False
 
 if args.p != None:
     try:
@@ -37,7 +49,10 @@ if args.reconstruct:
     print(deAlias(parse(fileS)).reconstruct())
     exit(0)
 if args.DebugStaticAnalysis:
-    print(testExample(fileS))
+    testExample(fileS)
+    exit(0)
+if args.DebugDiscards:
+    showDiscards(fileS)
     exit(0)
 
 
@@ -76,14 +91,26 @@ class Contexts:
     def __repr__(this):
         return repr(this._cons)
     def assign(this,var,val):
-        """Creates a new context, assigning the val to the var"""
+        """Creates a new context, assigning the val to the var. Takes the var as an int."""
         c = Contexts()
         for con,odds in this:
             c += setVar(con,var,val),odds
         return c
+    def discard(this,setInts):
+        """Takes a set of integer vars to delete. Sets them to 'None'."""
+        if setInts == set() or nd:
+            return this
+        c = Contexts()
+        for con,odds in this:
+            for var in setInts:
+                con = setVar(con,var,None)
+            c += con,odds
+        return c
+        
 
 def setVar(con,index,val):
     """Set a context var to a value. Returns a new tuple."""
+    if con[index] == val: return con
     con = list(con)
     con[index] = val
     return tuple(con)
@@ -119,7 +146,7 @@ def runCommand(ast,varLookup,data,conts):
             newOdds = odds * Frac(1,len(newCons2))
             for con in newCons2:
                 newConts += con,newOdds
-        return newConts
+        return newConts.discard(ast.discardsInt)
     elif ast.val == "pass":
         for con,odds in conts:
             data.doPass(odds)
@@ -138,7 +165,6 @@ def runCommand(ast,varLookup,data,conts):
             data.doReturn(res,odds)
         return Contexts()
     elif ast.val == "for":
-        # TODO
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,odds in conts:
             # Find range
@@ -150,7 +176,7 @@ def runCommand(ast,varLookup,data,conts):
         for block in blocks:
             subConts = blocks[block]
             for i in block:
-                subConts = subConts.assign(ast[0].varId,i)
+                subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
                 subConts = runBlock(ast[2],varLookup,data,subConts)
             newConts = newConts + subConts
         return newConts
@@ -162,7 +188,7 @@ def runCommand(ast,varLookup,data,conts):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
             if valid != 0:
                 newConts += con,odds
-        return newConts
+        return newConts.discard(ast.discardsInt)
     elif ast.val == "if":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,odds in conts:
@@ -178,20 +204,11 @@ def runCommand(ast,varLookup,data,conts):
         newConts = Contexts()
         for block in blocks:
             if block == None:
-                newConts = newConts + blocks[block]
+                newConts = newConts + blocks[block].discard(ast.discardsInt)
                 continue
-            subConts = blocks[block]
+            subConts = blocks[block].discard(ast.discardsInt)
             newSubConts = runBlock(block,varLookup,data,subConts)
             newConts = newConts + newSubConts
-        return newConts
-    elif ast.val == "bychance":
-        newConts = Contexts()
-        for con,odds in conts:
-            valid = doEval(ast[0],con)
-            if not isinstance(valid,int):
-                error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
-            if valid != 0:
-                newConts += con,odds
         return newConts
     elif ast.val == "print":
         toPrint = []
@@ -214,16 +231,16 @@ def runCommand(ast,varLookup,data,conts):
             else:
                 for key in keys:
                     print(f"({str(toPrintAgg[key]).rjust(newLen)}x)    " + key)
-        return conts
+        return conts.discard(ast.discardsInt)
     elif ast.val == "set":
         newConts = Contexts()
         for con,odds in conts:
             res = doEval(ast[2],con)
             con = setVar(con,ast[0].varId,res)
             newConts += con,odds
-        return newConts
-    
-    
+        return newConts.discard(ast.discardsInt)
+
+
 
 def runBlock(ast,varLookup,data,conts):
     """Runs an AST block or program. Takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.

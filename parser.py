@@ -6,6 +6,7 @@ lex(fileString) can be used to get a list of tokens, if desired.
 The AST class contains some of the static analysis code.
 """
 
+from color import * # Functions for making text change color.
 
 # For testing purposes only.
 def inp():
@@ -276,8 +277,7 @@ def lex(fileStr):
             while isDigit(s.peek): num += s.pop()
             res.append(Token(num,char.pos,char.line,int(num)))
             if s.peek == ".":
-                # TODO color
-                error(f"This language does not support floating point numbers.\nConsider using fractions instead (for example 2 / 3). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\nError occured when parsing {s.peek.charAtPos()}")
+                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {orange(2)} / {orange(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {orange(s.peek.charAtPos())}")
         elif char == "\"":
             # str literal
             raw = "\""
@@ -408,27 +408,34 @@ class AST:
             return new
         return [new]
         
+    def comment(this,cont):
+        if cont == "" or cont == None or cont == "None":
+            return ""
+        return lightgreen(" # " + str(cont))
     
-    
-    def reconstruct(this,color=False,indent=0,func=lambda command : ""):
+    def reconstruct(this,indent=0,funcArg=None):
         """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting. 'indent' determines the working level of indentation."""
-        # TODO implement color.
+        if funcArg == None:
+            func = lambda command : ""
+        else:
+            func = funcArg
         res = ""
+        keyword = cyan
         if this.nodeType == "program":
             for child in this:
-                res += child.reconstruct(color,indent,func)
+                res += child.reconstruct(indent,funcArg)
             return res + "\n"
         if this.nodeType == "block":
             for child in this:
-                res += child.reconstruct(color,indent+1,func)
+                res += child.reconstruct(indent+1,funcArg)
             return res
         if this.nodeType == "command" and this.val == "for":
-            res += "\t"*indent+str(func(this))+"for "+this[0].reconstruct(color,indent,func)+" from "+this[1].reconstruct(color,indent,func)+"\n"
-            res += this[2].reconstruct(color,indent,func)
+            res += "\t"*indent+keyword("for ")+this[0].reconstruct(indent,funcArg)+keyword(" from ")+this[1].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
+            res += this[2].reconstruct(indent,funcArg)
             return res
         if this.nodeType == "command" and this.val == "if":
-            res += "\t"*indent+str(func(this))+"if "+this[0].reconstruct(color,indent,func)+"\n"
-            res += this[1].reconstruct(color,indent,func)
+            res += "\t"*indent+keyword("if ")+this[0].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
+            res += this[1].reconstruct(indent,funcArg)
             # Create an iterator which skips the first 2 elements
             i = iter(this)
             next(i)
@@ -436,27 +443,34 @@ class AST:
             # Iterate over the remaining children
             for condition in i:
                 block = next(i) # If this fails, the AST node is poorly formatted. The children are consecutive expr, block pairs.
-                res += "\t"*indent+"elif "+condition.reconstruct(color,indent,func)+"\n"
-                res += block.reconstruct(color,indent,func)
+                res += "\t"*indent+keyword("elif ")+condition.reconstruct(indent,funcArg)+"\n"
+                res += block.reconstruct(indent,funcArg)
             return res
         if this.nodeType == "command" and this.val == "set":
-            return "\t"*indent+str(func(this))+this[0].reconstruct(color,indent,func)+" "+this[1].reconstruct(color,indent,func)+" "+this[2].reconstruct(color,indent,func)+"\n"
+            return "\t"*indent+this[0].reconstruct(indent,funcArg)+" "+this[1].reconstruct(indent,funcArg)+" "+this[2].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
         if this.nodeType == "command" and this.val == "select":
-            return "\t"*indent+str(func(this))+"select "+this[0].reconstruct(color,indent,func)+" from "+this[1].reconstruct(color,indent,func)+" where "+this[2].reconstruct(color,indent,func)+"\n"
+            return "\t"*indent+keyword("select ")+this[0].reconstruct(indent,funcArg)+keyword(" from ")+this[1].reconstruct(indent,funcArg)+keyword(" where ")+this[2].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
         if this.nodeType == "var":
             return this.val.raw
         if this.nodeType == "command" and this.val in ["pass","fail","done"]:
-            return "\t"*indent+str(func(this))+this.val.raw+"\n"
+            return "\t"*indent+keyword(this.val.raw)+this.comment(func(this))+"\n"
         if this.nodeType == "command" and this.val in ["return","print","bychance"]:
-            return "\t"*indent+str(func(this))+this.val.raw + " " + this[0].reconstruct(color,indent,func) + "\n"
+            return "\t"*indent+keyword(this.val.raw) + " " + this[0].reconstruct(indent,funcArg) + this.comment(func(this)) + "\n"
+        if this.nodeType == "str":
+            return orange(this.val.raw)
+        if this.nodeType == "int":
+            return blue(this.val.raw)
         if len(this) == 0: # Literal or var name.
             return this.val.raw
         if this.nodeType == "expr":
-            return this[0].reconstruct(color,indent,func)
+            return this[0].reconstruct(indent,funcArg)
         if this.nodeType == "opB":
-            return f"({this[0].reconstruct(color,indent,func)} {this.val.raw} {this[1].reconstruct(color,indent,func)})"
+            if this.val.raw in ["in","not","or","and","to"]:
+                return f"({this[0].reconstruct(indent,funcArg)} {keyword(this.val.raw)} {this[1].reconstruct(indent,funcArg)})"
+            else:
+                return f"({this[0].reconstruct(indent,funcArg)} {this.val.raw} {this[1].reconstruct(indent,funcArg)})"
         if this.nodeType == "opU":
-            return f"{this.val.raw}({this[0].reconstruct(color,indent,func)})"
+            return f"{this.val.raw}({this[0].reconstruct(indent,funcArg)})"
         raise Exception(f"Unhandled case: could not reconstruct string form of AST node with root: {this.val}")
 
 
@@ -491,7 +505,6 @@ def parseProg(s):
     res.append(AST(Token("done",-1,"Program done"),[],"command"))
     return AST(Token("program",(0,0,0)),res,"program")
 
-# TODO the 'True'
 
 def parseCommand(s):
     res = []
@@ -629,7 +642,7 @@ def parseExpr4(s):
     while s.peek == ",":
         op = s.pop()
         if s.peek == ")":
-            expr2 = AST(Token("("+s.peek.raw,s.peek.pos,s.peek.line,()),[],"list") # TODO test
+            expr2 = AST(Token("("+s.peek.raw,s.peek.pos,s.peek.line,()),[],"list")
         else:
             expr2 = parseExpr5(s)
         expr = AST(op,[expr,expr2],"opB")
