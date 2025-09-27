@@ -1,0 +1,31 @@
+
+# A game show has the following premise:
+# There are 3 doors. One has a prize behind it, the other 2 are empty.
+# A player is called up to the stage, and selects a door.
+# Then, the host of the show opens one of the other two doors, revealing the fact that it is empty
+# HOWEVER: this time the host actually forgot which door had the prize. He opened a door by chance, and it happened to not have the prize.
+# Finally: the player is given a choice: open the door they originally selected, or open the other one?
+# What are the odds of victory if they switch?
+
+doors = 1,2,3
+
+select prize from doors
+select PlayerChoice from doors
+select HostDoorOpened from doors where HostDoorOpened != PlayerChoice
+
+# Host got lucky, instead of knowing which door had the prize.
+bychance HostDoorOpened != prize
+
+# Player switches
+select newDoor from doors where newDoor != HostDoorOpened and newDoor != PlayerChoice
+
+
+if newDoor == prize
+	pass
+else
+	fail
+
+
+
+
+

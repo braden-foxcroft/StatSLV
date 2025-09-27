@@ -1,7 +1,8 @@
 
+# TODO implement '_' and '$' var
 
 from parser import parse,error
-from staticAnalysis import deAlias,addMetadata
+from staticAnalysis import deAlias,addMetadata,testExample
 import argparse
 from collections import defaultdict
 from fractions import Fraction
@@ -10,11 +11,13 @@ Frac = Fraction
 
 parser = argparse.ArgumentParser(description="An interpreter for the StatSLV programming language.")
 parser.add_argument('file', action="store",help="The file to run.")
-parser.add_argument('--noDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
+parser.add_argument('-DebugNoDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
+parser.add_argument('-DebugStaticAnalysis', action="store_true",help="Show a debug of the program in various stages of static analysis.")
 parser.add_argument('--reconstruct', action="store_true",help="Display the original program, as interpreted by the parser.")
 parser.add_argument('-p',action='store',help="Display the result as a percentage rounded to 'P' decimal places")
 parser.add_argument('-P',action='store_true',help="Display the result as a percentage")
 parser.add_argument('-f',action='store_true',help="Used if '-p' is present; also print the fractional result.")
+parser.add_argument('-noAgg',action='store_true',help="Don't aggregate print statements.")
 parser.add_argument('-silent',action='store_true',help="Don't warn about converting cases to fail or pass.")
 args = parser.parse_args()
 #print(args)
@@ -32,6 +35,9 @@ except:
 
 if args.reconstruct:
     print(deAlias(parse(fileS)).reconstruct())
+    exit(0)
+if args.DebugStaticAnalysis:
+    print(testExample(fileS))
     exit(0)
 
 
@@ -191,9 +197,23 @@ def runCommand(ast,varLookup,data,conts):
         toPrint = []
         for con,oddds in conts:
             toPrint.append(str(doEval(ast[0],con)))
-        toPrint.sort()
-        for t in toPrint:
-            print(t)
+        if args.noAgg:
+            toPrint.sort()
+            for t in toPrint:
+                print(t)
+        else:
+            toPrintAgg = defaultdict(int)
+            maxLen = 0
+            for val in toPrint:
+                toPrintAgg[val] += 1
+                newLen = len(str(toPrintAgg[val]))
+                if newLen > maxLen: maxLen = newLen
+            keys = sorted(set(toPrint))
+            if keys == [""]:
+                print()
+            else:
+                for key in keys:
+                    print(f"({str(toPrintAgg[key]).rjust(newLen)}x)    " + key)
         return conts
     elif ast.val == "set":
         newConts = Contexts()
@@ -217,7 +237,8 @@ def doEval(ast,cont):
     """Takes an expression and a variable context, and evaluates the expression using the context for variable values.
     Returns the expression result."""
     # TODO
-    if ast.nodeType == "expr": return doEval(ast[0],cont)
+    if ast.nodeType == "expr":
+        return doEval(ast[0],cont)
     if ast.nodeType == "opB":
         if ast.val == "+":
             r1 = doEval(ast[0],cont)
@@ -240,9 +261,9 @@ def doEval(ast,cont):
             r1 = doEval(ast[0],cont)
             r2 = doEval(ast[1],cont)
             if not isinstance(r1,int):
-                error(f"'to' command recieved non-int input:\n"+ast.val.line)
+                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             if not isinstance(r2,int):
-                error(f"'to' command recieved non-int input:\n"+ast.val.line)
+                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             return tuple(range(r1,r2+1))
         if ast.val == "==": return int(doEval(ast[0],cont) == doEval(ast[1],cont))
         if ast.val == "!=": return int(doEval(ast[0],cont) != doEval(ast[1],cont))
@@ -258,12 +279,27 @@ def doEval(ast,cont):
             res = doEval(ast[0],cont)
             if not res: return res
             return doEval(ast[1],cont)
+        if ast.val == "in":
+            r1 = doEval(ast[0],cont)
+            r2 = doEval(ast[1],cont)
+            if not isinstance(r2,tuple):
+                error(f"'in' operator recieved non-list input on right:\n"+ast.val.line)
+            return int(r1 in r2)
+        if ast.val == ".":
+            r1 = doEval(ast[0],cont)
+            r2 = doEval(ast[1],cont)
+            if not isinstance(r1,Frac) and not isinstance(r1,int):
+                error(f"'.' operator recieved non-numeric input on left:\n"+ast.val.line)
+            if not isinstance(r2,int):
+                error(f"'.' operator recieved non-int input on right:\n"+ast.val.line)
+            return str(round(float(r1),r2))
     if ast.nodeType == "opU":
         if ast.val == "-": return -doEval(ast[0],cont)
         if ast.vall == "not": return int(not doEval(ast[0],cont))
     if ast.nodeType == "var": return cont[ast.varId]
     if ast.nodeType == "int": return ast.val.val
     if ast.nodeType == "str": return ast.val.val
+    if ast.nodeType == "list": return ast.val.val
     raise Exception(f"Unkown ast node: {ast.nodeType} {ast.val.raw}")
 
 

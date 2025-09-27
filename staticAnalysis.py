@@ -8,6 +8,8 @@ addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
 
+# TODO implement '_' and '$' vars
+
 from parser import AST,Token,parse,t1,t2,t3
 from collections import deque
 # Token(raw,pos,line,val=None)
@@ -15,10 +17,9 @@ from collections import deque
 
 # A file for carrying out static analysis. Modifies the AST to be easier to execute, and to track when variables should vanish.
 
-# Testing code
-# TODO remove
 def testExample(exampleStr):
-    p = addMetadata(deAlias(parse(exampleStr)))
+    """Shows the static analysis info from the code, so you can see how things worked"""
+    p,m = addMetadata(deAlias(parse(exampleStr)))
     print("code:")
     print(p.reconstruct())
     print("discards:")

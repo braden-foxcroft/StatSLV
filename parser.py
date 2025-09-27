@@ -7,7 +7,7 @@ The AST class contains some of the static analysis code.
 """
 
 
-# TODO remove, for testing purposes only.
+# For testing purposes only.
 def inp():
     """Get a file from the command line. Used for testing, before the main module is built."""
     import sys
@@ -95,7 +95,7 @@ class Token:
     
     # A set of keyword and operator literals.
     operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "{", "}", "\n"}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "{", "}", "\n","()","$","_"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -232,12 +232,17 @@ def lex(fileStr):
         while char == " ": char = s.pop()
         
         # The various token possibilities
-        if char in ["(",")","$",".",","]:
+        if char in ["$",".",",",")"]:
             res.append(Token(char,char.pos,char.line))
         elif str(char) in {"+","-","*","!","<",">","="}:
             # All tokens which are either 't' or 't='.
             if s.peek == "=": res.append(Token(char + s.pop(), char.pos,char.line))
             else: res.append(Token(char,char.pos,char.line))
+        elif char == "(":
+            if s.peek == ")":
+                res.append(Token(char + s.pop(),char.pos,char.line,()))
+            else:
+                res.append(Token(char,char.pos,char.line))
         elif char == "/":
             if s.peek == "/":
                 res.append(Token(char + s.pop(),char.pos,char.line))
@@ -323,7 +328,7 @@ class AST:
         if not isinstance(nodeType,str): raise Exception(f"AST nodeType must be of type 'str'! (Got type {type(nodeType)} instead)")
         this._val = val
         this._children = list(children)
-        validTypes = ["program","block","command","expr","opB","opU","var","int","str"]
+        validTypes = ["program","block","command","expr","opB","opU","var","int","str","list"]
         if nodeType not in validTypes:
             raise Exception(f"Expected node of one of these types: {validTypes}\nGot node of type {repr(nodeType)}")
         this._type = nodeType
@@ -442,7 +447,7 @@ class AST:
             return this.val.raw
         if this.nodeType == "command" and this.val in ["pass","fail","done"]:
             return "\t"*indent+str(func(this))+this.val.raw+"\n"
-        if this.nodeType == "command" and this.val in ["return","print"]:
+        if this.nodeType == "command" and this.val in ["return","print","bychance"]:
             return "\t"*indent+str(func(this))+this.val.raw + " " + this[0].reconstruct(color,indent,func) + "\n"
         if len(this) == 0: # Literal or var name.
             return this.val.raw
@@ -602,19 +607,31 @@ def parseExpr2(s):
 
 def parseExpr3(s):
     """expr3 = expr4 {("==" | "!=" | "<=" | ">=" | "<=" | ">" | "<") expr4}"""
-    expr = parseExpr4(s)
+    expr = parseExpr3B(s)
     while s.peek in ["==","!=","<=",">=",">","<"]:
+        op = s.pop()
+        expr2 = parseExpr3B(s)
+        expr = AST(op,[expr,expr2],"opB")
+    return expr
+
+def parseExpr3B(s):
+    """expr4B = expr5 {"in" expr5}"""
+    expr = parseExpr4(s)
+    while s.peek == "in":
         op = s.pop()
         expr2 = parseExpr4(s)
         expr = AST(op,[expr,expr2],"opB")
     return expr
 
 def parseExpr4(s):
-    """expr4 = expr5 {"," expr5}"""
+    """expr4 = expr4B {"," [expr4B]}"""
     expr = parseExpr5(s)
     while s.peek == ",":
         op = s.pop()
-        expr2 = parseExpr5(s)
+        if s.peek == ")":
+            expr2 = AST(Token("("+s.peek.raw,s.peek.pos,s.peek.line,()),[],"list") # TODO test
+        else:
+            expr2 = parseExpr5(s)
         expr = AST(op,[expr,expr2],"opB")
     return expr
 
@@ -665,9 +682,18 @@ def parseExpr9(s):
         return AST(s.pop(),[],"int")
     if s.peek.isStr:
         return AST(s.pop(),[],"str")
+    if s.peek == "()":
+        return AST(s.pop(),[],"list")
     if s.peek != "(":
         error(f"While parsing an expression, expected a value, '(', or a unary operator. Got: {s.peek}")
     s.pop()
     expr = parseExpr1(s)
     expect(s,")")
     return expr
+
+
+
+
+
+
+

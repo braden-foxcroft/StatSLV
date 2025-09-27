@@ -6,6 +6,7 @@
 select coin from "tails","heads"
 select roll from 1 to 6
 
+
 if coin == "heads" or roll == 6
 	win = "yes"
 else
