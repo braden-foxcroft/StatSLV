@@ -7,7 +7,7 @@ import argparse
 from collections import defaultdict
 from fractions import Fraction
 from color import *
-dd = lambda : defaultdict(lambda : Frac(0,1))
+dd = lambda : defaultdict(Frac)
 Frac = Fraction
 
 import os
@@ -15,37 +15,50 @@ os.system("") # Turns on color codes, if needed. A hacky solution, though.
 
 parser = argparse.ArgumentParser(description="An interpreter for the StatSLV programming language.")
 parser.add_argument('file', action="store",help="The file to run.")
-parser.add_argument('-nd','-DebugNoDiscards', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
-parser.add_argument('-DebugStaticAnalysis','-DSA', action="store_true",help="Show a debug of the program in various stages of static analysis.")
-parser.add_argument('-DebugDiscards','-DD', action="store_true",help="Show a debug of the discards of the program")
-parser.add_argument('--reconstruct', action="store_true",help="Display the original program, as interpreted by the parser.")
-parser.add_argument('-p',action='store',help="Display the result as a percentage rounded to 'P' decimal places")
-parser.add_argument('-P',action='store_true',help="Display the result as a percentage")
-parser.add_argument('-f',action='store_true',help="Used if '-p' is present; also print the fractional result.")
-parser.add_argument('-noAgg',action='store_true',help="Don't aggregate print statements.")
-parser.add_argument('-silent',action='store_true',help="Don't warn about converting cases to fail or pass.")
-parser.add_argument('-NoColor','-nc',action='store_true',help="Don't include color in printouts.")
+
+ParserDisp = parser.add_argument_group('Output display options')
+ParserDisp.add_argument('-p',action='store_true',help="Display the result as a percentage")
+ParserDisp.add_argument('-P',action='store',help="Display the result as a percentage rounded to 'P' decimal places",type=int)
+ParserDisp.add_argument('-d',action='store_true',help="Display the result as a decimal")
+ParserDisp.add_argument('-D',action='store',help="Display the result as a decimal rounded to 'D' decimal places",type=int)
+ParserDisp.add_argument('-f',action='store_true',help="Print the fractional result. (Default if all options omitted.)")
+ParserDisp.add_argument('-F',action='store',help="Print the fractional result. (round to the nearest fraction with a denominator <= the value provided)",type=int)
+ParserDisp.add_argument('-b',action='store_true',help="Print the fractional result as a beautiful, multi-line fraction.")
+ParserDisp.add_argument('-B',action='store',help="Print the fractional result as a beautiful, multi-line fraction. (round to the nearest fraction with denominator <= the value provided)",type=int)
+
+parserExtraDisp = parser.add_argument_group('Additional display options')
+parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
+parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate print statements. Aggregation is when it adds (3x) in front of a result instead of printing it 3 times.")
+parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
+
+parserDebug = parser.add_argument_group('Debug options')
+parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
+parserDebug.add_argument('-DebugStaticAnalysis','-dsa', action="store_true",help="Show a debug of the program in various stages of static analysis.")
+parserDebug.add_argument('-DebugDiscards','-dd', action="store_true",help="Show a debug of the discards of the program")
+parserDebug.add_argument('-DebugReconstruct','-dr', action="store_true",help="Display the original program, as interpreted by the parser.")
+
 args = parser.parse_args()
 #print(args)
 
+# Set default for args.f if all options are omitted.
+if not (args.p or args.P != None or args.d or args.D != None or args.f or args.F != None or args.b or args.B != None):
+    args.f = True
+
+
 # No discards
-nd = args.nd
+nd = args.DebugNoDiscards
 
 if args.NoColor:
     Color.doColor = False
 
-if args.p != None:
-    try:
-        args.p = int(args.p)
-    except:
-        error("Error: '-p' arg was not an int!")
+
 
 try:
     with open(args.file,"rt",newline='') as file: fileS = file.read()
 except:
     error("Error: File could not be opened.")
 
-if args.reconstruct:
+if args.DebugReconstruct:
     print(deAlias(parse(fileS)).reconstruct())
     exit(0)
 if args.DebugStaticAnalysis:
@@ -253,7 +266,8 @@ def runBlock(ast,varLookup,data,conts):
 def doEval(ast,cont):
     """Takes an expression and a variable context, and evaluates the expression using the context for variable values.
     Returns the expression result."""
-    # TODO
+    # TODO type validation, list operations.
+    # TODO $ and _
     if ast.nodeType == "expr":
         return doEval(ast[0],cont)
     if ast.nodeType == "opB":
@@ -327,28 +341,94 @@ d = Data()
 c = Contexts()
 c += (None,)*len(varLookup),Frac(1,1)
 
+def printFrac(res):
+    """Print a Fraction as a colored fraction."""
+    if not isinstance(res,Fraction):
+        error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
+    print(lightblue(res.numerator),"/",lightblue(res.denominator),sep="")
+
+def padEven(a,b):
+    """Adds a '0' at the start of the shorter string if the strings' oddness/evenness doesn't match.
+    Returns both strings."""
+    if len(a) % 2 == len(b) % 2:
+        return a,b
+    if len(a) > len(b):
+        a,"0"+b
+    return "0"+a,b
+
+def printNiceFrac(res):
+    """Print a Fraction as a multi-line fraction."""
+    num = res.numerator
+    den = res.denominator
+    num = str(num)
+    den = str(den)
+    num,den = padEven(num,den)
+    maxLen = max(len(num),len(den))
+    print("\n" + blue(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + blue(den.center(maxLen+4)))
+    
+    
+    
+
+def showResult(res):
+    """Shows the result (Fraction object) using the global 'args' variable to format it correctly.
+    May print multiple lines if multiple argument flags are provided."""
+    if args.p:
+        print(float(res*100),"%",sep="")
+    if args.P != None:
+        print(round(float(res*100),args.P),"%",sep="")
+    if args.d:
+        print(float(res))
+    if args.D:
+        print(round(float(res),args.D))
+    if args.f:
+        printFrac(res)
+    if args.F != None:
+        printFrac(res.limit_denominator(args.F))
+    if args.b:
+        printNiceFrac(res)
+    if args.B != None:
+        printNiceFrac(res.limit_denominator(args.B))
+
+
+
 contRes = runBlock(ast,varLookup,d,c)
-if d._done != 0:
-    if d._returns:
-        error("If 'return' is present, programs cannot use 'done' or finish normally!")
-    if d._pass and not d._fail:
-        if not args.silent: print("All 'done' results marked 'fail'")
-        d._done,d._fail = Frac(0,1),d._done
-    if d._fail and not d._pass:
-        if not args.silent: print("All 'done' results marked 'pass'")
-        d._done,d._pass = Frac(0,1),d._done
-    if not d._fail and not d._pass:
-        error("No passes, fails, or returns!")
+
+
 if d._returns:
-    if d._done or d._pass:
-        error("Cannot mix pass/fail and return!")
-    print("TODO implement returns")
-    exit()
-res = Frac(d._pass,d._pass+d._fail)
-if args.P:
-    print(float(res*100),"%",sep="")
-if args.p != None:
-    print(round(float(res*100),args.p),"%",sep="")
-if args.p == None or args.P == False or args.f:
-    print(res)
-exit(0)
+    if d._done or d._pass or d._fail:
+        error("If 'return' is present, pass/fail/done cannot be used!\n(If you want a path to finish without returning, use 'bychance 0' instead.)")
+    returns = d._returns
+    if list(returns) == [""]: exit(0) # TODO document.
+    allInts = True
+    for r in returns:
+        if not isinstance(r,int) and not isinstance(r,Fraction):
+            allInts = False
+    if allInts:
+        res = Frac(0)
+        odds = Frac(0)
+        for r in returns:
+            res += returns[r] * r
+            odds += returns[r]
+        res = res / odds
+        showResult(res)
+    else:
+        pass # TODO aggregate results.
+        print("TODO more complex return statements")
+else:
+    if d._done != 0:
+        if d._pass and not d._fail:
+            if not args.silent: print(f"All {yellow('unmarked')} results marked as {red('fail')}")
+            d._done,d._fail = Frac(0,1),d._done
+        elif d._fail and not d._pass:
+            if not args.silent: print(f"All {yellow('unmarked')} results marked as {green('pass')}")
+            d._done,d._pass = Frac(0,1),d._done
+        elif d._fail and d._pass:
+            error(f"The code mixes the use of {green('pass')}, {red('fail')}, and {yellow('done')}.\n({yellow('done')} is insterted automatically after the final line of the code, to catch any cases where the code doesn't {green('pass')} or {red('fail')} first.)\nPlease make sure that your code always finishes with a {green('pass')} or {red('fail')}!")
+    if d._pass + d._fail == 0:
+        if args.silent:
+            exit(1)
+        else:
+            error("No result.")
+    res = Frac(d._pass,d._pass+d._fail)
+    showResult(res)
+

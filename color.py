@@ -23,3 +23,7 @@ cyan = Color(36)
 yellow = orange
 
 lightgreen = Color(92)
+lightblue = Color(94)
+
+# TODO make functions for formatting keywords, ints, etc. (For standardization purposes.)
+

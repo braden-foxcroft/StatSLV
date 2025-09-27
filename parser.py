@@ -187,7 +187,7 @@ def error(msg):
     try:
         import sys
         print(msg,file=sys.stderr)
-    except:
+    except: # Try again, but print to stdout instead
         print(msg)
     exit(1)
 
