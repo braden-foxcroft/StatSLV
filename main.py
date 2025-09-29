@@ -128,6 +128,20 @@ def setVar(con,index,val):
     con[index] = val
     return tuple(con)
 
+def stringSortKey(s):
+        """Turns a string into a (len(str),str) pair, ensuring short strings are before long strings when sorting.
+        If the string is an int, float, or fraction, returns the converted value."""
+        try:
+            return Fraction(s)
+        except:
+            try:
+                return int(s)
+            except:
+                    try:
+                        return float(s)
+                    except:
+                        return (len(s),s)
+
 def runCommand(ast,varLookup,data,conts):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
@@ -228,7 +242,7 @@ def runCommand(ast,varLookup,data,conts):
         for con,oddds in conts:
             toPrint.append(str(doEval(ast[0],con)))
         if args.noAgg:
-            toPrint.sort()
+            toPrint.sort(key=stringSortKey)
             for t in toPrint:
                 print(t)
         else:
@@ -238,7 +252,7 @@ def runCommand(ast,varLookup,data,conts):
                 toPrintAgg[val] += 1
                 newLen = len(str(toPrintAgg[val]))
                 if newLen > maxLen: maxLen = newLen
-            keys = sorted(set(toPrint))
+            keys = sorted(set(toPrint),key=stringSortKey)
             if keys == [""]:
                 print()
             else:
