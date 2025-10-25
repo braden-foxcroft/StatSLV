@@ -20,6 +20,7 @@ orange = Color("1;33")
 blue = Color("1;34")
 magenta = Color("1;35")
 cyan = Color("36")
+grey = Color("1;90")
 yellow = orange
 
 lightgreen = Color("1;92")

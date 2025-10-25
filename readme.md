@@ -16,13 +16,10 @@ If you don't have python, you'll have to install it first. The command should be
 - A fair bit of testing (sooo much testing)
 - A text debugger, so you can see what your code is doing
 - Maybe even a GUI debugger? That would probably be more work than it's worth, though.
-- Better `print` statements, so you can see what your code is doing. I'm not convinced this is particularly feasible, though. Especially when you combine `print` statements and `for` loops where different paths loop over different ranges, the code execution order becomes somewhat hard to make sense of.
-- User input? How would input even work in a multi-path execution?
+- User input. (Probably needs a function which gets de-aliased.)
 - Better documentation and further examples
 - Cleaning up of the syntax and semantics.
 - Better error messages
 - More command-line options
-- Arrays: [], [val, val, ...], 'in' and 'not in' operators. Array[index] operator.
-- Do I want dictionaries? They aren't hashable, though, so they can't easily be unified with other paths.
 - A proper explanation for how the interpreter does its magic.
 

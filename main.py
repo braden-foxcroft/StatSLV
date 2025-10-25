@@ -11,6 +11,7 @@ from color import *
 dd = lambda : defaultdict(Frac)
 Frac = Fraction
 
+import sys
 import os
 os.system("") # Turns on color codes, if needed. A hacky solution, though.
 
@@ -31,6 +32,9 @@ parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
 parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate print statements. Aggregation is when it adds (3x) in front of a result instead of printing it 3 times.")
 parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
+parserExtraDisp.add_argument('-isatty','-tty',action='store_true',help="Assume the input and output are terminals. This may resolve issues with displaying color.")
+parserExtraDisp.add_argument('-noGreyFill','-ng',action='store_true',help="When getting input: if the input has already been obtained, then don't display it in grey.")
+parserExtraDisp.add_argument('-skipInp','-ni',action='store_true',help="When getting input: if the input has already been obtained, then silently use it.")
 
 parserDebug = parser.add_argument_group('Debug options')
 parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
@@ -49,7 +53,8 @@ if not (args.p or args.P != None or args.d or args.D != None or args.f or args.F
 # No discards
 nd = args.DebugNoDiscards
 
-if args.NoColor:
+
+if args.NoColor or (not sys.stdout.isatty() and not args.isatty):
     Color.doColor = False
 
 
@@ -68,7 +73,6 @@ if args.DebugStaticAnalysis:
 if args.DebugDiscards:
     showDiscards(fileS)
     exit(0)
-
 
 class Data:
     """Tracks passes, fails, exits, and returns."""
@@ -120,7 +124,46 @@ class Contexts:
                 con = setVar(con,var,None)
             c += con,odds
         return c
-        
+
+gottenInput = []
+def doInput(prompt,count):
+    fromFile = (not sys.stdin.isatty() and not args.isatty)
+    if prompt.endswith(":"):
+        prompt = prompt + " "
+    elif prompt.endswith(" ") or prompt.endswith("="):
+        prompt = prompt # Do nothing
+    else:
+        prompt = prompt + "\n> "
+    if count < len(gottenInput):
+        res = gottenInput[count]
+        if args.skipInp:
+            autoInp = False
+        else:
+            print(prompt,end="")
+            autoInp = True
+    elif fromFile and args.skipInp:
+        res = input("") # No input text
+        gottenInput.append(res)
+        autoInp = False
+    else:
+        res = input(prompt)
+        gottenInput.append(res)
+        autoInp = fromFile
+    if autoInp:
+        if args.noGreyFill:
+            print("") # End the input line.
+        else:
+            print(grey(res))
+    # Try returning as an int, otherwise a frac, otherwise a str.
+    try:
+        return int(res)
+    except:
+        try:
+            return Fraction(res)
+        except:
+            return res
+
+
 
 def setVar(con,index,val):
     """Set a context var to a value. Returns a new tuple."""
