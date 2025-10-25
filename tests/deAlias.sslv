@@ -3,7 +3,8 @@
 
 
 nop
-return "hi"
+print select(1 to select(1 to input("hi")))
+return ""
 
 /*
 select a from 1 to 6

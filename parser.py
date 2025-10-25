@@ -508,7 +508,10 @@ def parseProg(s):
         com = parseCommand(s)
         if com != None:
             res.append(com)
-    res.append(AST(Token("done",-1,"Program done"),[],"command"))
+    #if len(res) == 0 or res[0].val == "set" and res[0][0] == "~inpCount~":
+    #    res = [AST(Token("set",None,"Start of program"),[],"command")] + res # TODO add 'set ~inpCount~ 0'
+    if len(res) == 0 or res[-1].val != "done":
+        res.append(AST(Token("done",-1,"Program done"),[],"command"))
     return AST(Token("program",(0,0,0)),res,"program")
 
 

@@ -54,38 +54,45 @@ def deAlias(ast):
 def deAliasSelect(ast):
     """Takes an command AST node. Returns a list of command AST nodes, where any in-line 'select' calls are split onto previous lines."""
     newChildren = [] # The new children
-    toSelect = [] # A list of var-expr pairs, where 'select var from expr' needs to be added before the command.
+    res = [] # A list of var-expr pairs, where 'select var from expr' needs to be added before the command.
     nextFree = 0 # The next free ~1~ var name to use.
+    # An AST node representing 'True' for the purposes of a 'select' statement.
+    trueAst = AST(Token("expr",ast.val.pos,"'select' statement macro put on separate line."),[AST(Token("1",ast.val.pos,val=1),[],"int")],"expr")
+    # Go through and modify the AST.
     for child in ast:
         if child.nodeType == "expr":
-            newChild,toSelectAdd,nextFree = deAliasExpr(child,nextFree,child)
+            newChild,toSelectAdd,nextFree = deAliasExpr(child,nextFree,child,trueAst)
             newChildren.append(newChild)
-            toSelect += toSelectAdd
+            res += toSelectAdd
         else:
             newChildren.append(child)
-    res = []
-    # TODO refactor: trueAst should be passed into deAliasExpr, and the AST nodes for 'select' and 'input' should be constructed there as well.
-    trueAst = AST(Token("expr",ast.val.pos,"'select' statement macro put on separate line."),[AST(Token("1",ast.val.pos,val=1),[],"int")],"expr")
-    for var,expr in toSelect:
-        res.append(AST(Token("select",var.val.pos,f"select ({var}) from {expr.reconstruct(0)}"),[var,expr,trueAst],"command"))
     res.append(AST(ast.val,newChildren,"command"))
     return res
 
-def deAliasExpr(node,nextFree,exprRoot):
+def deAliasExpr(node,nextFree,exprRoot,trueAst):
     """A recursive function which de-aliases expressions.
     takes an AST (expr or sub-expr) and an int (saying what ~number~ var is free next).
         Also takes an "expr" ast root, used for generating new expr nodes as needed.
     Returns a new AST, a list of var-expr pairs to select, and a new int."""
     if node.nodeType == "opU" and node.val == "select":
-        expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot)
+        expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
         var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
-        pairs.append([var,AST(exprRoot.val,[expr],"expr")])
+        expr = AST(exprRoot.val,[expr],"expr")
+        newNode = AST(Token("select",var.val.pos,f"select {var} from {expr.reconstruct(0)}"),[var,expr,trueAst],"command")
+        pairs.append(newNode)
         return var,pairs,nextFree+1
     # TODO modify to support de-aliasing 'input' too.
+    if node.nodeType == "opU" and node.val == "input":
+        expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
+        var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
+        expr = AST(exprRoot.val,[expr],"expr")
+        newNode = AST(Token("input",var.val.pos,f"input {var} {expr.reconstruct(0)}"),[var,expr],"command")
+        pairs.append(newNode)
+        return var,pairs,nextFree+1
     children = []
     pairs = []
     for child in node:
-        newChild,newPairs,nextFree = deAliasExpr(child,nextFree,exprRoot)
+        newChild,newPairs,nextFree = deAliasExpr(child,nextFree,exprRoot,trueAst)
         children.append(newChild)
         pairs += newPairs
     return AST(node.val,children,node.nodeType),pairs,nextFree
