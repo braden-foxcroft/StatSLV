@@ -6,7 +6,7 @@ class Color:
         Color.doColor = yesNo
     
     def __init__(this,code):
-        if not isinstance(code,int): raise Exception(f"Color(int) got \"{code}\" instead!")
+        if not isinstance(code,str): raise Exception(f"Color(str) got \"{code}\" instead!")
         this.code = str(code)
     
     def __call__(this,toConv):
@@ -14,16 +14,16 @@ class Color:
         return f"\033[{this.code}m" + str(toConv) + "\033[0m"
 
 
-red = Color(31)
-green = Color(32)
-orange = Color(33)
-blue = Color(34)
-magenta = Color(35)
-cyan = Color(36)
+red = Color("1;31")
+green = Color("1;32")
+orange = Color("1;33")
+blue = Color("1;34")
+magenta = Color("1;35")
+cyan = Color("36")
 yellow = orange
 
-lightgreen = Color(92)
-lightblue = Color(94)
+lightgreen = Color("1;92")
+lightblue = Color("1;94")
 
 col_keyword = cyan
 col_comment = lightgreen
