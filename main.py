@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 
 # TODO implement '_' and '$' var
 

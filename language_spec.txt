@@ -12,7 +12,7 @@ tokens:
 	comment markers:
 		# /* */
 	tokens:
-		variable names: [a-zA-Z][a-zA-Z0-9_]*
+		variable names: [a-zA-Z~][a-zA-Z0-9_~]*
 		the nameless variable: _
 		the odds of the path reaching the current point, as a fraction: $
 		integers: [0-9][0-9]*

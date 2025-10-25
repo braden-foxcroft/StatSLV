@@ -13,7 +13,6 @@ If you don't have python, you'll have to install it first. The command should be
 
 # What next?
 - A better readme file
-- Automatic variable discards (when a variable is no longer used, its value should be discarded automatically, causing branches to unify earlier)
 - A fair bit of testing (sooo much testing)
 - A text debugger, so you can see what your code is doing
 - Maybe even a GUI debugger? That would probably be more work than it's worth, though.
@@ -26,3 +25,4 @@ If you don't have python, you'll have to install it first. The command should be
 - Arrays: [], [val, val, ...], 'in' and 'not in' operators. Array[index] operator.
 - Do I want dictionaries? They aren't hashable, though, so they can't easily be unified with other paths.
 - A proper explanation for how the interpreter does its magic.
+

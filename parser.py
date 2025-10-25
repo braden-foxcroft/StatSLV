@@ -299,10 +299,10 @@ def lex(fileStr):
                 val += s.pop()
             raw += s.pop() # Ending quotation mark
             res.append(Token(raw,char.pos,char.line,val))
-        elif isAlpha(char):
+        elif isAlpha(char) or char == "~":
             # var name or keyword
             name = str(char)
-            while isAlpha(s.peek) or isDigit(s.peek) or s.peek == "_": name += s.pop()
+            while isAlpha(s.peek) or isDigit(s.peek) or s.peek == "_" or s.peek == "~": name += s.pop()
             res.append(Token(name,char.pos,char.line))
         elif char == "_":
             res.append(Token(char,char.pos,char.line))
