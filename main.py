@@ -218,6 +218,8 @@ def runCommand(ast,varLookup,data,conts):
             for con in newCons2:
                 newConts += con,newOdds
         return newConts.discard(ast.discardsInt)
+    elif ast.val == "nop":
+        return conts
     elif ast.val == "pass":
         for con,odds in conts:
             data.doPass(odds)

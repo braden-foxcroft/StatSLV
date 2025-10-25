@@ -1,5 +1,10 @@
 
 
+
+
+nop
+return "hi"
+
 /*
 select a from 1 to 6
 if a < 6
@@ -9,6 +14,8 @@ if b < 5
 	fail
 pass
 */
+
+
 
 /*
 input a "# of coin tosses: "

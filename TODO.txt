@@ -15,3 +15,5 @@ Working on:
 - parser is good.
 - runner is good (not for '$' or 'nop')
 - reconstructor seems good.
+- TODO static analysis
+- TODO runner for '$'

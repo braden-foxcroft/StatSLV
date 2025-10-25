@@ -1,7 +1,7 @@
 
 # TODO '_', '$'
 # TODO return
-# TODO sort?
+# TODO sorted?
 
 tokens:
 	operators, brackets, and assignment:

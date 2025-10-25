@@ -2,13 +2,15 @@
 
 """
 Important methods:
-setColor(bool) determines if the module uses color for console prints. 
+setColor(bool) determines if the module uses color for console prints.
 deAlias(ast) returns an AST without inline 'select' statements.
 addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
 
 # TODO implement '_' and '$' vars
+# TODO de-alias 'input' calls
+# TODO variable use and declaration of ~inpCount~ variable. Add line at start of program with declaration; remove same line from runner.
 
 from parser import AST,Token,parse,t1,t2,t3
 from collections import deque
@@ -62,6 +64,7 @@ def deAliasSelect(ast):
         else:
             newChildren.append(child)
     res = []
+    # TODO refactor: trueAst should be passed into deAliasExpr, and the AST nodes for 'select' and 'input' should be constructed there as well.
     trueAst = AST(Token("expr",ast.val.pos,"'select' statement macro put on separate line."),[AST(Token("1",ast.val.pos,val=1),[],"int")],"expr")
     for var,expr in toSelect:
         res.append(AST(Token("select",var.val.pos,f"select ({var}) from {expr.reconstruct(0)}"),[var,expr,trueAst],"command"))
@@ -78,6 +81,7 @@ def deAliasExpr(node,nextFree,exprRoot):
         var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
         pairs.append([var,AST(exprRoot.val,[expr],"expr")])
         return var,pairs,nextFree+1
+    # TODO modify to support de-aliasing 'input' too.
     children = []
     pairs = []
     for child in node:
