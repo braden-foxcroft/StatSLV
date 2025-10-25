@@ -360,7 +360,7 @@ def printFrac(res):
     """Print a Fraction as a colored fraction."""
     if not isinstance(res,Fraction):
         error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
-    print(lightblue(res.numerator),"/",lightblue(res.denominator),sep="")
+    print(col_int(res.numerator),"/",col_int(res.denominator),sep="")
 
 def padEven(a,b):
     """Adds a '0' at the start of the shorter string if the strings' oddness/evenness doesn't match.
@@ -379,7 +379,7 @@ def printNiceFrac(res):
     den = str(den)
     num,den = padEven(num,den)
     maxLen = max(len(num),len(den))
-    print("\n" + blue(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + blue(den.center(maxLen+4)))
+    print("\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4)))
     
     
     

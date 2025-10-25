@@ -277,7 +277,7 @@ def lex(fileStr):
             while isDigit(s.peek): num += s.pop()
             res.append(Token(num,char.pos,char.line,int(num)))
             if s.peek == ".":
-                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {orange(2)} / {orange(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {orange(s.peek.charAtPos())}")
+                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {col_int(2)} / {col_int(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {col_string(s.peek.charAtPos())}")
         elif char == "\"":
             # str literal
             raw = "\""
@@ -411,7 +411,7 @@ class AST:
     def comment(this,cont):
         if cont == "" or cont == None or cont == "None":
             return ""
-        return lightgreen(" # " + str(cont))
+        return col_comment(" # " + str(cont))
     
     def reconstruct(this,indent=0,funcArg=None):
         """Reconstructs the AST as a string. 'color' determines if to add syntax highlighting. 'indent' determines the working level of indentation."""
@@ -420,7 +420,7 @@ class AST:
         else:
             func = funcArg
         res = ""
-        keyword = cyan
+        keyword = col_keyword
         if this.nodeType == "program":
             for child in this:
                 res += child.reconstruct(indent,funcArg)
@@ -457,9 +457,9 @@ class AST:
         if this.nodeType == "command" and this.val in ["return","print","bychance"]:
             return "\t"*indent+keyword(this.val.raw) + " " + this[0].reconstruct(indent,funcArg) + this.comment(func(this)) + "\n"
         if this.nodeType == "str":
-            return orange(this.val.raw)
+            return col_string(this.val.raw)
         if this.nodeType == "int":
-            return blue(this.val.raw)
+            return col_int(this.val.raw)
         if len(this) == 0: # Literal or var name.
             return this.val.raw
         if this.nodeType == "expr":

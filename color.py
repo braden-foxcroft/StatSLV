@@ -25,5 +25,7 @@ yellow = orange
 lightgreen = Color(92)
 lightblue = Color(94)
 
-# TODO make functions for formatting keywords, ints, etc. (For standardization purposes.)
-
+col_keyword = cyan
+col_comment = lightgreen
+col_str = orange
+col_int = blue
