@@ -310,6 +310,23 @@ def runCommand(ast,varLookup,data,conts):
             con = setVar(con,ast[0].varId,res)
             newConts += con,odds
         return newConts.discard(ast.discardsInt)
+    elif ast.val == "input":
+        newConts = Contexts()
+        inpCountId = varLookup["~inpCount~"]
+        allDisps = defaultdict(list)
+        for con,odds in conts:
+            toDisp = doEval(ast[1],con)
+            inpCount = con[inpCountId]
+            allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),odds))
+        keys = sorted(allDisps)
+        for toDisp,inpCount in keys:
+            res = doInput(toDisp,inpCount)
+            for con,odds in allDisps[toDisp,inpCount]:
+                newConts += setVar(con,ast[0].varId,res),odds
+        return newConts
+    else:
+        error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
+    error(f"No return value for runCommand: {orange(ast.val.val)}")
 
 
 
@@ -397,7 +414,7 @@ ast = deAlias(ast)
 ast,varLookup = addMetadata(ast)
 d = Data()
 c = Contexts()
-c += (None,)*len(varLookup),Frac(1,1)
+c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),Frac(1,1)
 
 def printFrac(res):
     """Print a Fraction as a colored fraction."""

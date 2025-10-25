@@ -91,7 +91,7 @@ def findVarNames(ast):
     """Takes an ast, returns a sorted non-repeating list of var names."""
     varList = ast.filter(lambda node : node.nodeType == "var")
     varSet = set([var.val.raw for var in varList])
-    varSet = varSet - {"_"}
+    varSet = (varSet - {"_"}) | {"~inpCount~","$"}
     return sorted(varSet)
     
 class VarMapping:

@@ -1,0 +1,40 @@
+
+
+/*
+select a from 1 to 6
+if a < 6
+	fail
+select b from 1 to 6
+if b < 5
+	fail
+pass
+*/
+
+/*
+input a "# of coin tosses: "
+for i from 1 to a
+	if select(0 to 1) == 0
+		fail
+pass
+*/
+
+
+
+/*
+select b from 1 to 3
+input a ("path " + b + " says hello: ")
+print a + b
+*/
+
+
+/*
+select a from 1 to 2
+
+if a == 1
+	input b "first: "
+else
+	b = "default"
+input c "second: "
+print a+" "+b+" "+c
+return ""
+*/

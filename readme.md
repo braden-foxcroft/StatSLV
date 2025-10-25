@@ -15,7 +15,6 @@ If you don't have python, you'll have to install it first. The command should be
 - A better readme file
 - A fair bit of testing (sooo much testing)
 - A text debugger, so you can see what your code is doing
-- Maybe even a GUI debugger? That would probably be more work than it's worth, though.
 - User input. (Probably needs a function which gets de-aliased.)
 - Better documentation and further examples
 - Cleaning up of the syntax and semantics.

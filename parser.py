@@ -94,9 +94,9 @@ class Token:
     """A token class. Tracks the raw str which generated it, the value,
     whether it's a keyword and/or operator, and its type (int literal, varname, str literal)"""
     
-    # A set of keyword and operator literals.
-    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "{", "}", "\n","()","$","_"}
+    # A set of keyword and operator literals. An item may appear in both. Items in either will not be considered variable names.
+    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "=", "(",")","."}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "nop", "input", "{", "}", "\n","()","$","_"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -277,7 +277,7 @@ def lex(fileStr):
             while isDigit(s.peek): num += s.pop()
             res.append(Token(num,char.pos,char.line,int(num)))
             if s.peek == ".":
-                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {col_int(2)} / {col_int(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {col_string(s.peek.charAtPos())}")
+                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {col_int(2)} / {col_int(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {col_str(s.peek.charAtPos())}")
         elif char == "\"":
             # str literal
             raw = "\""
@@ -426,6 +426,8 @@ class AST:
                 res += child.reconstruct(indent,funcArg)
             return res + "\n"
         if this.nodeType == "block":
+            if len(this) == 0:
+                return "\t"*(indent+1) + keyword("nop") + "\n"
             for child in this:
                 res += child.reconstruct(indent+1,funcArg)
             return res
@@ -450,6 +452,10 @@ class AST:
             return "\t"*indent+this[0].reconstruct(indent,funcArg)+" "+this[1].reconstruct(indent,funcArg)+" "+this[2].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
         if this.nodeType == "command" and this.val == "select":
             return "\t"*indent+keyword("select ")+this[0].reconstruct(indent,funcArg)+keyword(" from ")+this[1].reconstruct(indent,funcArg)+keyword(" where ")+this[2].reconstruct(indent,funcArg)+this.comment(func(this))+"\n"
+        if this.nodeType == "command" and this.val == "input":
+            return "\t"*indent + keyword("input ") + this[0].reconstruct(indent,funcArg) + " " + this[1].reconstruct(indent,funcArg) + this.comment(func(this))+"\n"
+        if this.nodeType == "command" and this.val == "nop":
+            return "\t"*indent + keyword("nop") + this.comment(func(this)) + "\n"
         if this.nodeType == "var":
             return this.val.raw
         if this.nodeType == "command" and this.val in ["pass","fail","done"]:
@@ -457,7 +463,7 @@ class AST:
         if this.nodeType == "command" and this.val in ["return","print","bychance"]:
             return "\t"*indent+keyword(this.val.raw) + " " + this[0].reconstruct(indent,funcArg) + this.comment(func(this)) + "\n"
         if this.nodeType == "str":
-            return col_string(this.val.raw)
+            return col_str(this.val.raw)
         if this.nodeType == "int":
             return col_int(this.val.raw)
         if len(this) == 0: # Literal or var name.
@@ -523,7 +529,7 @@ def parseCommand(s):
             expr2 = AST(Token("1",com.pos,com.line,1),[],"int") # The expression 'True'
         expect(s,"\n")
         return AST(com,[var,expr,expr2],"command")
-    if s.peek in ["pass","fail","done"]:
+    if s.peek in ["pass","fail","done","nop"]:
         com = s.pop()
         expect(s,"\n")
         return AST(com,[],"command")
@@ -533,6 +539,11 @@ def parseCommand(s):
         expr = parseExpr(s)
         expect(s,"\n")
         return AST(com,[expr],"command")
+    if s.peek == "input":
+        com = s.pop()
+        var = parseVar(s)
+        expr = parseExpr(s)
+        return AST(com,[var,expr],"command")
     if s.peek == "for":
         com = s.pop()
         var = parseVar(s)
@@ -579,6 +590,8 @@ def expect(s,expected):
 
 def parseVar(s):
     """Returns a var node"""
+    if s.peek.isKeyword and (s.peek in ["$","_"]):
+        return AST(s.pop(),[],"var")
     if not s.peek.isVar:
         error(f"Expected varname, got {s.peek}")
     return AST(s.pop(),[],"var")
@@ -676,8 +689,8 @@ def parseExpr7(s):
     return expr
 
 def parseExpr8(s):
-    """expr8 = ["!" | "-" | "select" | "not"] expr9"""
-    if s.peek in ["!","-","select","not"]:
+    """expr8 = ["!" | "-" | "select" | "not" | "input"] expr9"""
+    if s.peek in ["!","-","select","not","input"]:
         op = s.pop()
         if op == "!": # '!' is just 'not'
             op.raw = "not"
@@ -688,13 +701,15 @@ def parseExpr8(s):
     
 
 def parseExpr9(s):
-    """expr9 = int | var | string | "(" expr1 ")" """
+    """expr9 = int | var | "$"" | "_" | string | "(" expr1 ")" """
     if s.peek.isVar:
         return AST(s.pop(),[],"var")
     if s.peek.isInt:
         return AST(s.pop(),[],"int")
     if s.peek.isStr:
         return AST(s.pop(),[],"str")
+    if s.peek.isKeyword and (s.peek in ["$","_"]):
+        return AST(s.pop(),[],"var")
     if s.peek == "()":
         return AST(s.pop(),[],"list")
     if s.peek != "(":
