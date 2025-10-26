@@ -9,7 +9,7 @@ The interpreter also supports several command-line flags, such as '-p' and '-P'.
 
 > python main.py examples\twoDice.txt
 
-If you don't have python, you'll have to install it first. The command should be run from the command line, in the same folder as this readme.
+This command should be run from the command line, in the same folder as this readme.
 
 # What next?
 - A better readme file
