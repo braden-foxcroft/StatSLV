@@ -355,7 +355,7 @@ def doEval(ast,cont):
                 r1,r2 = str(r1),str(r2)
             return r1 + r2
         if ast.val == "-": return doEval(ast[0],cont) - doEval(ast[1],cont)
-        if ast.val == "*": return doEval(ast[0],cont) - doEval(ast[1],cont)
+        if ast.val == "*": return doEval(ast[0],cont) * doEval(ast[1],cont)
         if ast.val == "//": return doEval(ast[0],cont) // doEval(ast[1],cont)
         if ast.val == "/": return Frac(doEval(ast[0],cont),doEval(ast[1],cont))
         if ast.val == "%": return doEval(ast[0],cont) % doEval(ast[1],cont)

@@ -15,5 +15,5 @@ Working on:
 - parser is good.
 - runner is good (not for '$' or 'nop')
 - reconstructor seems good.
-- TODO static analysis: ~inpCount~ usage, adding 'nop' at start and end of blocks, and after 'for' and 'if' commands.
+- TODO static analysis: ~inpCount~ usage (creation and discard), adding 'nop' at start and end of blocks, and after 'for' and 'if' commands.
 - TODO runner for '$'
