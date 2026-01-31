@@ -26,6 +26,12 @@ ParserDisp.add_argument('-F',action='store',help="Print the fractional result. (
 ParserDisp.add_argument('-b',action='store_true',help="Print the fractional result as a beautiful, multi-line fraction.")
 ParserDisp.add_argument('-B',action='store',help="Print the fractional result as a beautiful, multi-line fraction. (round to the nearest fraction with denominator <= the value provided)",type=int)
 
+ParserPrint = parser.add_argument_group('Print default options')
+ParserPrint.add_argument('-printa',"-pa",action='store_true',help="'print' will be treated like 'printa'. This is the default.")
+ParserPrint.add_argument('-printc',"-pc",action='store_true',help="'print' will be treated like 'printc'.")
+ParserPrint.add_argument('-printr',"-pr",action='store_true',help="'print' will be treated like 'printr'.")
+
+
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
 parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate print statements. Aggregation is when it adds (3x) in front of a result instead of printing it 3 times.")
@@ -290,27 +296,66 @@ def runCommand(ast,varLookup,data,conts):
             newSubConts = runBlock(block,varLookup,data,subConts)
             newConts = newConts + newSubConts
         return newConts
-    elif ast.val == "print":
+    elif ast.val == "printc" or (ast.val == "print" and args.printc):
+        # Print each item, tracking count.
         toPrint = []
         for con,odds in conts:
             toPrint.append(str(doEval(ast[0],con,odds)))
-        if args.noAgg:
-            toPrint.sort(key=stringSortKey)
-            for t in toPrint:
-                print(t)
+        toPrintAgg = defaultdict(int)
+        maxLen = 0
+        for val in toPrint:
+            toPrintAgg[val] += 1
+            newLen = len(str(toPrintAgg[val]))
+            if newLen > maxLen: maxLen = newLen
+        keys = sorted(set(toPrint),key=stringSortKey)
+        if keys == [""]:
+            print()
         else:
-            toPrintAgg = defaultdict(int)
-            maxLen = 0
-            for val in toPrint:
-                toPrintAgg[val] += 1
-                newLen = len(str(toPrintAgg[val]))
-                if newLen > maxLen: maxLen = newLen
-            keys = sorted(set(toPrint),key=stringSortKey)
-            if keys == [""]:
-                print()
+            if args.noAgg:
+                toPrint.sort(key=stringSortKey)
+                for t in toPrint:
+                    print(t)
             else:
                 for key in keys:
                     print(f"({str(toPrintAgg[key]).rjust(newLen)}x)    " + key)
+        return conts.discard(ast.discardsInt)
+    elif ast.val == "printr" or (ast.val == "print" and args.printr):
+        # Print each item, tracking likelyhood. Use the likelyhood given that the print statement occured, not the absolute likelyhood.
+        toPrint = defaultdict(Fraction)
+        totalOdds = Fraction(0)
+        for con,odds in conts:
+            toPrint[str(doEval(ast[0],con,odds))] += odds
+            totalOdds += odds
+        keys = sorted(toPrint,key=stringSortKey)
+        if keys == [""]:
+            print()
+        elif args.noAgg:
+            for key in keys:
+                print(key)
+        else:
+            maxLen = 0
+            for key in keys:
+                maxLen = max(maxLen, len(str(toPrint[key] / totalOdds)))
+            for key in keys:
+                print(f"({str(toPrint[key] / totalOdds).rjust(maxLen)})    {key}")
+        return conts.discard(ast.discardsInt)
+    elif ast.val == "printa" or ast.val == "print":
+        # Print each item, tracking the absolute probability of the print occurring at this moment in time.
+        toPrint = defaultdict(Fraction)
+        for con,odds in conts:
+            toPrint[str(doEval(ast[0],con,odds))] += odds
+        keys = sorted(toPrint,key=stringSortKey)
+        if keys == [""]:
+            print()
+        elif args.noAgg:
+            for key in keys:
+                print(key)
+        else:
+            maxLen = 0
+            for key in keys:
+                maxLen = max(maxLen, len(str(toPrint[key])))
+            for key in keys:
+                print(f"({str(toPrint[key]).rjust(maxLen)})    {key}")
         return conts.discard(ast.discardsInt)
     elif ast.val == "set":
         newConts = Contexts()

@@ -96,7 +96,7 @@ class Token:
     
     # A set of keyword and operator literals. An item may appear in both. Items in either will not be considered variable names.
     operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "sorted", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "nop", "input", "sorted", "{", "}", "\n","()","$","_"}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "printa", "printc", "printr", "nop", "input", "sorted", "{", "}", "\n","()","$","_"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -105,6 +105,7 @@ class Token:
     def __init__(this,raw,pos,line="No line provided",val=None):
         """raw: a raw string representing the token
         pos: a 3-item tuple (char,line,offset), or -1 (End of file), or None (unknown pos)
+        line: the string form of the current line of code.
         val: a processed int or str for int or str literals"""
         if isinstance(raw,PosChar): raw = str(raw)
         this._isOp = raw in this.operators # operator or bracket
@@ -534,7 +535,16 @@ def parseCommand(s):
         com = s.pop()
         expect(s,"\n")
         return AST(com,[],"command")
-    if s.peek in ["return","bychance","print"]:
+    if s.peek in ["return","print","printa","printc","printr"]:
+        com = s.pop()
+        # Take a single expr argument (otherwise an empty string.)
+        if s.peek == "\n":
+            expr = AST(Token("expr",com.pos),[AST(Token("\"\"",com.pos,val=""),[],"str")],"expr")
+        else:
+            expr = parseExpr(s)
+        expect(s,"\n")
+        return AST(com,[expr],"command")
+    if s.peek == "bychance":
         com = s.pop()
         # Take a single expr argument
         expr = parseExpr(s)
@@ -581,7 +591,7 @@ def parseCommand(s):
             res += [expr,block]
         return AST(com,res,"command")
     # Default case is var assignOp expr
-    var = parseVar(s)
+    var = parseVar(s," or command")
     op = getAssignOp(s)
     expr = parseExpr(s)
     return AST(Token("set",var.pos,var.val.line),[var,AST(op,[],"opB"),expr],"command")
@@ -598,12 +608,12 @@ def expect(s,expected):
         error(f"Expected {repr(expected)}, got {s.peek}")
     return s.pop()
 
-def parseVar(s):
+def parseVar(s,orWhat=""):
     """Returns a var node"""
     if s.peek.isKeyword and (s.peek in ["$","_"]):
         return AST(s.pop(),[],"var")
     if not s.peek.isVar:
-        error(f"Expected varname, got {s.peek}")
+        error(f"Expected varname{orWhat}, got {s.peek}")
     return AST(s.pop(),[],"var")
 
 def getAssignOp(s):

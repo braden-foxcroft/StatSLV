@@ -1,5 +1,4 @@
 
-# TODO printc (print with counts), print (print with odds)
 # TODO only allow comparisons with None if arg flag enabled.
 
 tokens:
@@ -7,7 +6,7 @@ tokens:
 		+ - * / // % to , ! == != <= >= < > . or and not select input sorted ( )
 		= += -= *=
 	command keywords:
-		select from where for in if else elif break continue bychance print pass fail done return input sorted
+		select from where for in if else elif break continue bychance print printa printc printr pass fail done return input sorted
 	comment markers:
 		# /* */
 	tokens:
@@ -55,7 +54,7 @@ command = "\n"
 		| "if" expr [":"] "\n" block [elseOptions]
 		| "bychance" expr "\n"
 		| "input" var expr "\n"
-		| "print" expr "\n"
+		| ("print" | "printa" | "printc" | "printr") expr "\n"
 		| var assignOp expr .
 
 assignOp = "="
