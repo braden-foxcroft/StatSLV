@@ -2,6 +2,7 @@
 
 # What are the odds that the sum of two dice rolls is 7?
 
+
 select rollA from 1 to 6
 # print "hi"
 select rollB from 1 to 6
@@ -12,3 +13,7 @@ if rollA + rollB == 7
 	pass
 else
 	fail
+
+
+# Interestingly, this can actually be solved in a single line of code:
+#     return select(1 to 6) + select(1 to 6) == 7
