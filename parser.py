@@ -579,7 +579,7 @@ def parseCommand(s):
         while s.peek == "elif" or s.peek == "else":
             if s.peek == "else":
                 expr = AST(Token("1",s.peek.pos,s.pop().line,1),[],"int") # The expression 'True'
-                optional(":")
+                optional(s,":")
                 expect(s,"\n")
                 block = parseBlock(s)
             else: # s.peek == "elif"
