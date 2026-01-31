@@ -1,18 +1,6 @@
-- Implement and provide proper Sublime Text addon for syntax highlighting.
-- Implement '$' and '_' variables, as well as an internal '~inpCount~' var for input
-- Implement run-time input. Each path should keep track of how many times it has recieved input, so that input remains aligned between threads. A special input handler will be required, which keeps a list of input already received.
-- Implement 'nop' command (does nothing, but should be auto-added before and after blocks, as well as after 'if' and 'for'. It should also be used for empty blocks, and added to the lang spec.) It will be useful for allowing 'discard' commands to happen at the right time.
-- Better 'return' handling, with improved command-line flags for control (mean,median,mode)
+- Implement and maintain proper Sublime Text addon for syntax highlighting.
+- Auto-add 'nop' command before and after blocks, as well as after 'if' and 'for'. It's presence will make sure that discards happen at the right time.
+- Better 'return' handling, with improved command-line flags for control (mean,median,mode) maybe?
+- Documentation and code samples
+- Clean up command-line args. Soo many.
 
-
-Working on:
-- Adding 'input', 'nop' command
-- Adding '$' and '_'
-- Add new variable '~inpCount~'
-- Adjust all tools to support them: parser, static analysis, reconstructor, runner.
-
-- Reconstructor is good.
-- parser is good.
-- runner is good (not for '$' or 'nop')
-- TODO static analysis: ~inpCount~ usage (creation and discard), adding 'nop' at start and end of blocks, and after 'for' and 'if' commands.
-- TODO runner for '$': modify the expression eval command to include '$'. Modify AST node types to include psuedo-variables like $ and _
