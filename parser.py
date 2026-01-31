@@ -95,8 +95,8 @@ class Token:
     whether it's a keyword and/or operator, and its type (int literal, varname, str literal)"""
     
     # A set of keyword and operator literals. An item may appear in both. Items in either will not be considered variable names.
-    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "nop", "input", "{", "}", "\n","()","$","_"}
+    operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "sorted", "=", "(",")","."}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "nop", "input", "sorted", "{", "}", "\n","()","$","_"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -233,7 +233,7 @@ def lex(fileStr):
         while char == " ": char = s.pop()
         
         # The various token possibilities
-        if char in ["$",".",",",")"]:
+        if char in ["$",".",",",")",":"]:
             res.append(Token(char,char.pos,char.line))
         elif str(char) in {"+","-","*","!","<",">","="}:
             # All tokens which are either 't' or 't='.
@@ -508,8 +508,6 @@ def parseProg(s):
         com = parseCommand(s)
         if com != None:
             res.append(com)
-    #if len(res) == 0 or res[0].val == "set" and res[0][0] == "~inpCount~":
-    #    res = [AST(Token("set",None,"Start of program"),[],"command")] + res # TODO add 'set ~inpCount~ 0'
     if len(res) == 0 or res[-1].val != "done":
         res.append(AST(Token("done",-1,"Program done"),[],"command"))
     return AST(Token("program",(0,0,0)),res,"program")
@@ -554,6 +552,7 @@ def parseCommand(s):
             error(f"Expected 'in' or 'from', got {s.peek}")
         s.pop()
         expr = parseExpr(s)
+        optional(s,":")
         expect(s,"\n")
         block = parseBlock(s)
         return AST(com,[var,expr,block],"command")
@@ -563,17 +562,20 @@ def parseCommand(s):
         # 'else' is just 'elif 1'
         res = []
         expr = parseExpr(s)
+        optional(s,":")
         expect(s,"\n")
         block = parseBlock(s)
         res += [expr,block]
         while s.peek == "elif" or s.peek == "else":
             if s.peek == "else":
                 expr = AST(Token("1",s.peek.pos,s.pop().line,1),[],"int") # The expression 'True'
+                optional(":")
                 expect(s,"\n")
                 block = parseBlock(s)
             else: # s.peek == "elif"
                 s.pop()
                 expr = parseExpr(s)
+                optional(s,":")
                 expect(s,"\n")
                 block = parseBlock(s)
             res += [expr,block]
@@ -584,6 +586,11 @@ def parseCommand(s):
     expr = parseExpr(s)
     return AST(Token("set",var.pos,var.val.line),[var,AST(op,[],"opB"),expr],"command")
 
+
+def optional(s,expected):
+    """Removes the expected token if present"""
+    if s.peek == expected:
+        s.pop()
 
 def expect(s,expected):
     """Expects the next token to be 'expected', and exits otherwise. Returns the expected token."""
@@ -692,8 +699,8 @@ def parseExpr7(s):
     return expr
 
 def parseExpr8(s):
-    """expr8 = ["!" | "-" | "select" | "not" | "input"] expr9"""
-    if s.peek in ["!","-","select","not","input"]:
+    """expr8 = ["!" | "-" | "select" | "not" | "input" | "sorted"] expr9"""
+    if s.peek in ["!","-","select","not","input","sorted"]:
         op = s.pop()
         if op == "!": # '!' is just 'not'
             op.raw = "not"

@@ -5,7 +5,7 @@
 # If 30 people are in the same room, what are the odds that two of them have the same birthday?
 
 for person from 1 to 23
-	newDay = select(1 to 365)
+	select newDay from 1 to 365
 	if newDay < person
 		pass
 

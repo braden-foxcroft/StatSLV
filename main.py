@@ -1,7 +1,5 @@
 #! /usr/bin/python3
 
-# TODO implement '_' and '$' var
-
 from parser import parse,error
 from staticAnalysis import deAlias,addMetadata,testExample,showDiscards
 import argparse
@@ -31,6 +29,7 @@ ParserDisp.add_argument('-B',action='store',help="Print the fractional result as
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
 parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate print statements. Aggregation is when it adds (3x) in front of a result instead of printing it 3 times.")
+parserExtraDisp.add_argument('-intAllowed','-i',action='store_true',help="Fractions will be displayed as integers whenever possible.")
 parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
 parserExtraDisp.add_argument('-isatty','-tty',action='store_true',help="Assume the input and output are terminals. This may resolve issues with displaying color.")
 parserExtraDisp.add_argument('-noGreyFill','-ng',action='store_true',help="When getting input: if the input has already been obtained, then don't display it in grey.")
@@ -41,6 +40,7 @@ parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help="Don
 parserDebug.add_argument('-DebugStaticAnalysis','-dsa', action="store_true",help="Show a debug of the program in various stages of static analysis.")
 parserDebug.add_argument('-DebugDiscards','-dd', action="store_true",help="Show a debug of the discards of the program")
 parserDebug.add_argument('-DebugReconstruct','-dr', action="store_true",help="Display the original program, as interpreted by the parser.")
+parserDebug.add_argument('-DebugAST','-da', action="store_true",help="Display the Raw AST")
 
 args = parser.parse_args()
 #print(args)
@@ -72,6 +72,9 @@ if args.DebugStaticAnalysis:
     exit(0)
 if args.DebugDiscards:
     showDiscards(fileS)
+    exit(0)
+if args.DebugAST:
+    print(deAlias(parse(fileS)))
     exit(0)
 
 class Data:
@@ -167,24 +170,24 @@ def doInput(prompt,count):
 
 def setVar(con,index,val):
     """Set a context var to a value. Returns a new tuple."""
-    if con[index] == val: return con
+    if index == None or con[index] == val: return con
     con = list(con)
     con[index] = val
     return tuple(con)
 
 def stringSortKey(s):
         """Turns a string into a (len(str),str) pair, ensuring short strings are before long strings when sorting.
-        If the string is an int, float, or fraction, returns the converted value."""
+        If the string is an int, float, or fraction, returns the converted value followed by the str."""
         try:
-            return Fraction(s)
+            return Fraction(s),s
         except:
             try:
-                return int(s)
+                return int(s),s
             except:
                     try:
-                        return float(s)
+                        return float(s),s
                     except:
-                        return (len(s),s)
+                        return len(s),s
 
 def runCommand(ast,varLookup,data,conts):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
@@ -198,7 +201,7 @@ def runCommand(ast,varLookup,data,conts):
         # For each context, apply the select.
         for con,odds in conts:
             # Determine the options for the select
-            vals = doEval(expr,con)
+            vals = doEval(expr,con,odds)
             if not isinstance(vals,tuple):
                 error("Error: 'select' statement expression returned non-list.\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Generate the new contexts
@@ -208,11 +211,11 @@ def runCommand(ast,varLookup,data,conts):
             # Filter by validity
             newCons2 = []
             for con in newCons:
-                valid = doEval(cond,con)
+                valid = doEval(cond,con,odds)
                 if valid:
                     newCons2.append(con)
             if len(newCons2) == 0:
-                error("Error: 'select' statement had no options!\n"+ast.val.line+"\nError at: "+str(ast.val))
+                error("Error: 'select' statement recieved an empty list of options!\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Save to the final context
             newOdds = odds * Frac(1,len(newCons2))
             for con in newCons2:
@@ -234,14 +237,14 @@ def runCommand(ast,varLookup,data,conts):
         return Contexts()
     elif ast.val == "return":
         for con,odds in conts:
-            res = doEval(ast[0],con)
+            res = doEval(ast[0],con,odds)
             data.doReturn(res,odds)
         return Contexts()
     elif ast.val == "for":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,odds in conts:
             # Find range
-            rng = doEval(ast[1],con)
+            rng = doEval(ast[1],con,odds)
             if not isinstance(rng,tuple):
                 error("'for' loop expr did not return list:\n"+var.val.line)
             blocks[rng] += con,odds
@@ -249,14 +252,18 @@ def runCommand(ast,varLookup,data,conts):
         for block in blocks:
             subConts = blocks[block]
             for i in block:
-                subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
+                # Don't assign var if it will just be instantly deleted.
+                if ast[0].varId in ast.discardsInt:
+                    subConts = subConts.discard(ast.discardsInt)
+                else:
+                    subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
                 subConts = runBlock(ast[2],varLookup,data,subConts)
             newConts = newConts + subConts
         return newConts
     elif ast.val == "bychance":
         newConts = Contexts()
         for con,odds in conts:
-            valid = doEval(ast[0],con)
+            valid = doEval(ast[0],con,odds)
             if not isinstance(valid,int):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
             if valid != 0:
@@ -268,7 +275,7 @@ def runCommand(ast,varLookup,data,conts):
             i = iter(ast)
             for expr in i:
                 block = next(i)
-                valid = doEval(expr,con)
+                valid = doEval(expr,con,odds)
                 if valid:
                     blocks[block] += con,odds
                     break
@@ -285,8 +292,8 @@ def runCommand(ast,varLookup,data,conts):
         return newConts
     elif ast.val == "print":
         toPrint = []
-        for con,oddds in conts:
-            toPrint.append(str(doEval(ast[0],con)))
+        for con,odds in conts:
+            toPrint.append(str(doEval(ast[0],con,odds)))
         if args.noAgg:
             toPrint.sort(key=stringSortKey)
             for t in toPrint:
@@ -308,7 +315,7 @@ def runCommand(ast,varLookup,data,conts):
     elif ast.val == "set":
         newConts = Contexts()
         for con,odds in conts:
-            res = doEval(ast[2],con)
+            res = doEval(ast[2],con,odds)
             con = setVar(con,ast[0].varId,res)
             newConts += con,odds
         return newConts.discard(ast.discardsInt)
@@ -317,7 +324,7 @@ def runCommand(ast,varLookup,data,conts):
         inpCountId = varLookup["~inpCount~"]
         allDisps = defaultdict(list)
         for con,odds in conts:
-            toDisp = doEval(ast[1],con)
+            toDisp = doEval(ast[1],con,odds)
             inpCount = con[inpCountId]
             allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),odds))
         keys = sorted(allDisps)
@@ -340,71 +347,78 @@ def runBlock(ast,varLookup,data,conts):
     return conts
 
 
-def doEval(ast,cont):
+def doEval(ast,cont,odds):
     """Takes an expression and a variable context, and evaluates the expression using the context for variable values.
     Returns the expression result."""
     # TODO type validation, list operations.
-    # TODO $ and _
     if ast.nodeType == "expr":
-        return doEval(ast[0],cont)
+        return doEval(ast[0],cont,odds)
     if ast.nodeType == "opB":
         if ast.val == "+":
-            r1 = doEval(ast[0],cont)
-            r2 = doEval(ast[1],cont)
+            r1 = doEval(ast[0],cont,odds)
+            r2 = doEval(ast[1],cont,odds)
             if isinstance(r1,str) or isinstance(r2,str):
                 r1,r2 = str(r1),str(r2)
             return r1 + r2
-        if ast.val == "-": return doEval(ast[0],cont) - doEval(ast[1],cont)
-        if ast.val == "*": return doEval(ast[0],cont) * doEval(ast[1],cont)
-        if ast.val == "//": return doEval(ast[0],cont) // doEval(ast[1],cont)
-        if ast.val == "/": return Frac(doEval(ast[0],cont),doEval(ast[1],cont))
-        if ast.val == "%": return doEval(ast[0],cont) % doEval(ast[1],cont)
+        if ast.val == "-": return doEval(ast[0],cont,odds) - doEval(ast[1],cont,odds)
+        if ast.val == "*": return doEval(ast[0],cont,odds) * doEval(ast[1],cont,odds)
+        if ast.val == "//": return doEval(ast[0],cont,odds) // doEval(ast[1],cont,odds)
+        if ast.val == "/": return Frac(doEval(ast[0],cont,odds),doEval(ast[1],cont,odds))
+        if ast.val == "%": return doEval(ast[0],cont,odds) % doEval(ast[1],cont,odds)
         if ast.val == ",":
-            r1 = doEval(ast[0],cont)
-            r2 = doEval(ast[1],cont)
+            r1 = doEval(ast[0],cont,odds)
+            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r1,tuple): r1 = (r1,)
             if not isinstance(r2,tuple): r2 = (r2,)
             return r1 + r2
         if ast.val == "to":
-            r1 = doEval(ast[0],cont)
-            r2 = doEval(ast[1],cont)
+            r1 = doEval(ast[0],cont,odds)
+            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r1,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             if not isinstance(r2,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             return tuple(range(r1,r2+1))
-        if ast.val == "==": return int(doEval(ast[0],cont) == doEval(ast[1],cont))
-        if ast.val == "!=": return int(doEval(ast[0],cont) != doEval(ast[1],cont))
-        if ast.val == "<=": return int(doEval(ast[0],cont) <= doEval(ast[1],cont))
-        if ast.val == ">=": return int(doEval(ast[0],cont) >= doEval(ast[1],cont))
-        if ast.val == "<": return int(doEval(ast[0],cont) < doEval(ast[1],cont))
-        if ast.val == ">": return int(doEval(ast[0],cont) > doEval(ast[1],cont))
+        if ast.val == "==": return int(doEval(ast[0],cont,odds) == doEval(ast[1],cont,odds))
+        if ast.val == "!=": return int(doEval(ast[0],cont,odds) != doEval(ast[1],cont,odds))
+        if ast.val == "<=": return int(doEval(ast[0],cont,odds) <= doEval(ast[1],cont,odds))
+        if ast.val == ">=": return int(doEval(ast[0],cont,odds) >= doEval(ast[1],cont,odds))
+        if ast.val == "<": return int(doEval(ast[0],cont,odds) < doEval(ast[1],cont,odds))
+        if ast.val == ">": return int(doEval(ast[0],cont,odds) > doEval(ast[1],cont,odds))
         if ast.val == "or":
-            res = doEval(ast[0],cont)
+            res = doEval(ast[0],cont,odds)
             if res: return res
-            return doEval(ast[1],cont)
+            return doEval(ast[1],cont,odds)
         if ast.val == "and":
-            res = doEval(ast[0],cont)
+            res = doEval(ast[0],cont,odds)
             if not res: return res
-            return doEval(ast[1],cont)
+            return doEval(ast[1],cont,odds)
         if ast.val == "in":
-            r1 = doEval(ast[0],cont)
-            r2 = doEval(ast[1],cont)
+            r1 = doEval(ast[0],cont,odds)
+            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r2,tuple):
                 error(f"'in' operator recieved non-list input on right:\n"+ast.val.line)
             return int(r1 in r2)
         if ast.val == ".":
-            r1 = doEval(ast[0],cont)
-            r2 = doEval(ast[1],cont)
+            r1 = doEval(ast[0],cont,odds)
+            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r1,Frac) and not isinstance(r1,int):
                 error(f"'.' operator recieved non-numeric input on left:\n"+ast.val.line)
             if not isinstance(r2,int):
                 error(f"'.' operator recieved non-int input on right:\n"+ast.val.line)
             return str(round(float(r1),r2))
     if ast.nodeType == "opU":
-        if ast.val == "-": return -doEval(ast[0],cont)
-        if ast.vall == "not": return int(not doEval(ast[0],cont))
-    if ast.nodeType == "var": return cont[ast.varId]
+        if ast.val == "-": return -doEval(ast[0],cont,odds)
+        if ast.val == "not": return int(not doEval(ast[0],cont,odds))
+        if ast.val == "sorted":
+            r1 = doEval(ast[0],cont,odds)
+            if not isinstance(r1,tuple):
+                error(f"'sorted' function recieved non-tuple input:\n"+ast.val.line)
+            return tuple(sorted(r1))
+    if ast.nodeType == "var":
+        if ast.val.raw == "$": return odds
+        if ast.varId == None: return None
+        return cont[ast.varId]
     if ast.nodeType == "int": return ast.val.val
     if ast.nodeType == "str": return ast.val.val
     if ast.nodeType == "list": return ast.val.val
@@ -418,11 +432,18 @@ d = Data()
 c = Contexts()
 c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),Frac(1,1)
 
-def printFrac(res):
-    """Print a Fraction as a colored fraction."""
+def strFrac(res, returnInstead=False):
+    """Returns a Fraction as a colored fraction str."""
     if not isinstance(res,Fraction):
         error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
-    print(col_int(res.numerator),"/",col_int(res.denominator),sep="")
+    if args.intAllowed and res.is_integer():
+        return col_int(int(res))
+    return col_int(res.numerator) + "/" + col_int(res.denominator)
+
+def floatOrInt(res):
+    """Converts a Fraction to a float or int, depending on command-line args and if it is possible to do so."""
+    if res.is_integer(): return int(res)
+    return float(res)
 
 def padEven(a,b):
     """Adds a '0' at the start of the shorter string if the strings' oddness/evenness doesn't match.
@@ -444,23 +465,34 @@ def printNiceFrac(res):
     print("\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4)))
     
     
+def showAgg(res):
+    # Takes a dict (str -> odds). Prints it line-by-line, with each line having the format:
+    # (odds) item 
+    keys = list(res)
+    keys.sort(key=stringSortKey)
+    maxLen = 0
+    for key in keys:
+        maxLen = max(maxLen,len(str(key)))
+    for key in keys:
+        print(f"({str(res[key]).rjust(maxLen)}) {str(key)}")
+
     
 
 def showResult(res):
     """Shows the result (Fraction object) using the global 'args' variable to format it correctly.
     May print multiple lines if multiple argument flags are provided."""
     if args.p:
-        print(float(res*100),"%",sep="")
+        print(col_int(floatOrInt(res*100)),"%",sep="")
     if args.P != None:
-        print(round(float(res*100),args.P),"%",sep="")
+        print(col_int(round(floatOrInt(res*100),args.P)),"%",sep="")
     if args.d:
-        print(float(res))
+        print(col_int(floatOrInt(res)))
     if args.D:
-        print(round(float(res),args.D))
+        print(col_int(round(floatOrInt(res),args.D)))
     if args.f:
-        printFrac(res)
+        print(strFrac(res))
     if args.F != None:
-        printFrac(res.limit_denominator(args.F))
+        print(strFrac(res.limit_denominator(args.F)))
     if args.b:
         printNiceFrac(res)
     if args.B != None:
@@ -476,21 +508,23 @@ if d._returns:
         error("If 'return' is present, pass/fail/done cannot be used!\n(If you want a path to finish without returning, use 'bychance 0' instead.)")
     returns = d._returns
     if list(returns) == [""]: exit(0) # TODO document.
-    allInts = True
+    allNums = True
     for r in returns:
         if not isinstance(r,int) and not isinstance(r,Fraction):
-            allInts = False
-    if allInts:
+            allNums = False
+    if allNums:
         res = Frac(0)
         odds = Frac(0)
-        for r in returns:
-            res += returns[r] * r
-            odds += returns[r]
+        for val in returns:
+            res += returns[val] * val
+            odds += returns[val]
         res = res / odds
         showResult(res)
     else:
-        pass # TODO aggregate results.
-        print("TODO more complex return statements")
+        res = defaultdict(Fraction)
+        for key in returns:
+            res[str(key)] += returns[key]
+        showAgg(res)
 else:
     if d._done != 0:
         if d._pass and not d._fail:

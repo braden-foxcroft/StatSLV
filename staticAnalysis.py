@@ -3,14 +3,10 @@
 """
 Important methods:
 setColor(bool) determines if the module uses color for console prints.
-deAlias(ast) returns an AST without inline 'select' statements.
+deAlias(ast) returns an AST without inline 'select' or 'input' statements.
 addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
-
-# TODO implement '_' and '$' vars
-# TODO de-alias 'input' calls
-# TODO variable use and declaration of ~inpCount~ variable. Add line at start of program with declaration; remove same line from runner.
 
 from parser import AST,Token,parse,t1,t2,t3
 from collections import deque
@@ -81,7 +77,6 @@ def deAliasExpr(node,nextFree,exprRoot,trueAst):
         newNode = AST(Token("select",var.val.pos,f"select {var} from {expr.reconstruct(0)}"),[var,expr,trueAst],"command")
         pairs.append(newNode)
         return var,pairs,nextFree+1
-    # TODO modify to support de-aliasing 'input' too.
     if node.nodeType == "opU" and node.val == "input":
         expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
         var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
@@ -145,7 +140,12 @@ def tagVars(m):
     Takes a mapping, returns a function which modifies and AST"""
     def mapVals(ast):
         if ast.nodeType != "var": return
-        ast.varId = m[ast.val.raw]
+        if ast.val.raw == "_":
+            ast.varId = None
+        elif ast.val.raw == "$":
+            ast.varId = None
+        else:
+            ast.varId = m[ast.val.raw]
         return
     return mapVals
 
@@ -178,6 +178,8 @@ def varUseAndAssign(ast):
         if child.nodeType == "expr":
             varsUsed += child.filter(lambda node : node.nodeType == "var")
     varsUsed = [var.val.raw for var in varsUsed]
+    if ast.val.raw == "input":
+        varsUsed.append("~inpCount~")
     ast.varsUsed = set(varsUsed)
     # varsMade
     varsMade = []
@@ -281,6 +283,8 @@ def addMetadata(ast):
     ast.forAll(addCommandDefaults)
     # Get the vars used on each line, and which are assigned. Ignore '_' and '$'
     ast.forAll(varUseAndAssign)
+    # The first line also uses "~inpCount~", to ensure proper discards
+    if len(ast): ast[0].varsMade.add("~inpCount~")
     # Figure out which lines precede which lines. Note that 'for' loops have unconventional ordering.
     determinePrevs(ast)
     # Add 'nexts' based on the 'prevs'

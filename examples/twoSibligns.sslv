@@ -1,0 +1,17 @@
+
+
+# There are two siblings.
+# Given that at least one of them is a boy born on Monday, what are the odds that both are boy?
+
+
+aIsMale = select(0,1)
+bIsMale = select(0,1)
+aWDay   = select(1 to 7)
+bWDay   = select(1 to 7)
+
+bychance (aIsMale == 1 and aWDay == 1) or (bIsMale == 1 and bWDay == 1)
+
+if aIsMale and bIsMale:
+	pass
+fail
+

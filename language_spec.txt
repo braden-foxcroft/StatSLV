@@ -1,19 +1,18 @@
 
-# TODO '_', '$'
-# TODO return
-# TODO sorted?
+# TODO printc (print with counts), print (print with odds)
+# TODO only allow comparisons with None if arg flag enabled.
 
 tokens:
 	operators, brackets, and assignment:
-		+ - * / // % to , ! == != <= >= < > . or and not select input ( )
+		+ - * / // % to , ! == != <= >= < > . or and not select input sorted ( )
 		= += -= *=
 	command keywords:
-		select from where for in if else elif break continue bychance print pass fail done return input
+		select from where for in if else elif break continue bychance print pass fail done return input sorted
 	comment markers:
 		# /* */
 	tokens:
 		variable names: [a-zA-Z~][a-zA-Z0-9_~]*
-		the nameless variable: _
+		the "NULL register" variable: _
 		the odds of the path reaching the current point, as a fraction: $
 		integers: [0-9][0-9]*
 		strings: Use "" only, permits \n \r \t \\ \", must be single-line only.
@@ -24,7 +23,7 @@ tokens:
 
 order of operations (top of the list executes first):
 	( )
-	unary operators: ! - select not input
+	unary operators: ! - select not input sorted
 	* // % / .
 	+ -
 	to
@@ -52,8 +51,8 @@ command = "\n"
 		| "fail" "\n"
 		| "done" "\n"
 		| "return" expr "\n"
-		| "for" var ("in" | "from") expr "\n" block
-		| "if" expr "\n" block [elseOptions]
+		| "for" var ("in" | "from") expr [":"] "\n" block
+		| "if" expr [":"] "\n" block [elseOptions]
 		| "bychance" expr "\n"
 		| "input" var expr "\n"
 		| "print" expr "\n"
@@ -63,8 +62,8 @@ assignOp = "="
 
 
 
-elseOptions = "elif" expr block [elseOptions]
-			| "else" expr block .
+elseOptions = "elif" expr [":"] "\n" block [elseOptions]
+			| "else" [":"] block .
 
 
 expr = expr1
@@ -76,7 +75,7 @@ expr4 = expr5 {"," [expr5]} # Special case: if '[expr5]' is omitted, assume '()'
 expr5 = expr6 {"to" expr6}
 expr6 = expr7 {("+" | "-") expr7}
 expr7 = expr8 {("*" | "//" | "%" | "/" | ".") expr8}
-expr8 = ["!" | "-" | "select" | "not" | "input"] expr9
+expr8 = ["!" | "-" | "select" | "not" | "input" | "sorted"] expr9
 expr9 = int | var | "$"" | "_" | string | "(" expr1 ")" | "(" expr1 "," ")" | "()"
 
 
