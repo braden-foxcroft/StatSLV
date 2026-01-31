@@ -34,7 +34,7 @@ ParserPrint.add_argument('-printr',"-pr",action='store_true',help="'print' will 
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
-parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate print statements. Aggregation is when it adds (3x) in front of a result instead of printing it 3 times.")
+parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate printc statements. Don't display odds for printa and printr statements")
 parserExtraDisp.add_argument('-intAllowed','-i',action='store_true',help="Fractions will be displayed as integers whenever possible.")
 parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
 parserExtraDisp.add_argument('-isatty','-tty',action='store_true',help="Assume the input and output are terminals. This may resolve issues with displaying color.")
