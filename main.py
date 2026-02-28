@@ -106,6 +106,7 @@ class Data:
 class MD:
     """Data about a context: the odds of occuring, and the name of the graph node used for the state."""
     graph = None
+    hasGraph = False
 
     def __init__(this,odds=Fraction(0,1),nodeIds=None):
         this.odds = odds
@@ -116,7 +117,10 @@ class MD:
             this.ids = nodeIds
 
     def __add__(this,other):
-        return MD(this.odds + other.odds, this.ids + other.ids)
+        if MD.hasGraph:
+            return MD(this.odds + other.odds, this.ids + other.ids)
+        else:
+            return MD(this.odds + other.odds)
 
     def __lt__(this,other):
         return (this.odds,this.ids) < (other.odds,other.ids)
@@ -513,7 +517,8 @@ def doEval(ast,cont,odds):
 ast = parse(fileS)
 ast = deAlias(ast)
 ast,varLookup = addMetadata(ast)
-MD.graph = graph.Graph(False) # TODO 'dummy' param
+MD.graph = graph.Graph(not args.graph)
+MD.hasGraph = args.graph
 d = Data()
 c = Contexts()
 c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),["root"])

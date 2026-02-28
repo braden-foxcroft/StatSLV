@@ -193,11 +193,17 @@ class Graph:
 			node.win = 0
 		return
 
-	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,removeLinear=False,useCircle=False,colorEdges=False,file="output"):
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,removeLinear=False,useCircle=False,colorEdges=False,showPrints=True,file="output"):
 		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
 		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
-		if removeLinear: this.removeAllLinear() # get rid of linear nodes if needed.
+		if removeLinear:
+			if showPrints: print("Removing linear nodes...",end="",flush=True)
+			this.removeAllLinear() # get rid of linear nodes if needed.
+			if showPrints: print("Done.")
+		if showPrints: print("Choosing node colors...",end="",flush=True)
 		this.cleanup() # figure out all necessary win/lose.
+		if showPrints: print("Done.")
+		if showPrints: print("Loading graph info...",end="",flush=True)
 		dot = create_graph(useCircle)
 		for nodeId in this:
 			node = this[nodeId]
@@ -214,7 +220,10 @@ class Graph:
 					if other.win == 1: color = "green"
 					if other.win == -1: color = "red"
 				add_edge(dot, node.id, other.id, label, color)
+		if showPrints: print("Done.")
+		if showPrints: print("Graphviz working...",end="",flush=True)
 		toFile(dot)
+		if showPrints: print("Done.")
 
 def chooseColor(win,brightRed,brightGreen,brightBlue):
 	"""win: -1 or 0 or 1, bright*: bool.
