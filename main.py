@@ -253,7 +253,6 @@ def runCommand(ast,varLookup,data,conts):
     elif ast.val == "nop":
         return conts
     elif ast.val == "pass":
-        # TODO pass, fail, done, return for graph nodes.
         for con,md in conts:
             data.doPass(md.odds)
             for nodeId in md.ids: MD.graph.nodePass(nodeId)
@@ -407,8 +406,7 @@ def runCommand(ast,varLookup,data,conts):
                 newConts += setVar(con,ast[0].varId,res),md
         return newConts
     elif ast.val == "!":
-        # TODO implement this.
-        # It should add a node to the graph, if a graph is being constructed.
+        # Add a new row of nodes for the paths which run this command.
         newConts = Contexts()
         for con,md in conts:
             odds = md.odds
@@ -418,8 +416,6 @@ def runCommand(ast,varLookup,data,conts):
             for oldId in oldIds:
                 MD.graph.addEdge(oldId, newId)
             newConts += con,MD(odds,[newId])
-            # TODO is this right?
-            # TODO MD will track multiple nodes.
         return newConts
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")

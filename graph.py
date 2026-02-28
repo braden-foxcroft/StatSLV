@@ -269,17 +269,3 @@ def toFile(dot,file="output"):
 	"""Converts the dot object to a file."""
 	dot.render(file, cleanup=True, view=True)
 
-""" Example
-dot = create_graph()
-add_node(dot,"a","A","pink")
-add_node(dot,"b","B","lightblue")
-add_node(dot,"b2","BB","lightblue")
-add_node(dot,"c","C","lightgreen")
-
-add_edge(dot,"a","b","1/2","green")
-add_edge(dot,"a","b2","1/3","red")
-add_edge(dot,"b","c")
-add_edge(dot,"b2","c")
-
-toFile(dot)
-"""
