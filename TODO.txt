@@ -3,4 +3,5 @@
 - Better 'return' handling, with improved command-line flags for control (mean,median,mode) maybe?
 - Documentation and code samples
 - Clean up command-line args. Soo many.
+- Show its work (using graphs, graphviz and DOT)
 

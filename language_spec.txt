@@ -1,6 +1,4 @@
 
-# TODO only allow comparisons with None if arg flag enabled.
-
 tokens:
 	operators, brackets, and assignment:
 		+ - * / // % to , ! == != <= >= < > . or and not select input sorted ( )

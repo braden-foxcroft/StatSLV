@@ -6,6 +6,7 @@ import argparse
 from collections import defaultdict
 from fractions import Fraction
 from color import *
+import graph
 dd = lambda : defaultdict(Frac)
 Frac = Fraction
 
