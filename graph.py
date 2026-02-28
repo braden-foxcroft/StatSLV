@@ -30,8 +30,8 @@ class Node:
 	nextFree = 0
 	def __init__(this,theId=None,label=None,odds=None):
 		if theId == None:
-			theId = f"~{nextFree}~"
-			nextFree += 1
+			this.id = f"~{Node.nextFree}~"
+			Node.nextFree += 1
 		else:
 			this.id = theId
 		this.label = label
@@ -94,10 +94,11 @@ class Node:
 class Graph:
 	"""A full graph. A list of nodes and their configurations."""
 
-	def __init__(this):
+	def __init__(this,dummy=False):
 		this.root = Node(None,"",Fraction(1,1))
 		this.nodes = dict()
 		this.nodes["root"] = this.root
+		this.dummy = dummy # if dummy, then don't do anything.
 
 	def __getitem__(this,theId):
 		return this.nodes[theId]
@@ -115,33 +116,43 @@ class Graph:
 		
 		Returns a str node id
 		"""
-		n = Node(theId,name,label,odds)
+		if this.dummy: return "root"
+
+		n = Node(None,label,odds)
 		this.nodes[n.id] = n
 		return n.id
 
 
 	def addEdge(this,sourceId,destId):
 		"""Adds an edge. Takes str ids"""
+		if this.dummy: return
 		this[sourceId] > this[destId]
 
 
 	def nodePass(this,theId):
 		"""Marks a node as pass"""
-		node = this[therId]
+		if this.dummy: return
+		node = this[theId]
 		if node.win == -1 or node.win == 0:
 			node.win = 0
 		if node.win == 1 or node.win == None:
 			node.win = 1
 	def nodeFail(this,theId):
 		"""Marks a node as fail"""
-		node = this[therId]
+		if this.dummy: return
+		node = this[theId]
 		if node.win == 1 or node.win == 0:
 			node.win = 0
 		if node.win == -1 or node.win == None:
 			node.win = -1
+	def nodeDone(this,theId):
+		"""Marks a node as done or returned"""
+		if this.dummy: return
+		this[theId].win = 0
 	
 	def removeAllLinear(this):
 		"""Remove any node with 1 parent and 1 child"""
+		if this.dummy: return
 		# TODO check what happens if only 1 node remains.
 		toDel = []
 		for nodeId in this:
@@ -160,6 +171,7 @@ class Graph:
 
 	def cleanup(this,node=None):
 		"""Determines pass/fail for each node"""
+		if this.dummy: return
 		# Use root if not specified
 		if node == None: node = this.root
 		if node.win != None: return
@@ -183,6 +195,7 @@ class Graph:
 
 	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,removeLinear=False,useCircle=False,colorEdges=False,file="output"):
 		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
+		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
 		if removeLinear: this.removeAllLinear() # get rid of linear nodes if needed.
 		this.cleanup() # figure out all necessary win/lose.
 		dot = create_graph(useCircle)
@@ -194,25 +207,27 @@ class Graph:
 			for other in node:
 				label = None
 				color = "black"
-				if labelEdges: label = str(Fraction(other.odds / this.odds))
+				if labelEdges:
+					labelFrac = Fraction(other.odds / node.odds)
+					if labelFrac != 1: label = str(labelFrac)
 				if colorEdges:
 					if other.win == 1: color = "green"
 					if other.win == -1: color = "red"
 				add_edge(dot, node.id, other.id, label, color)
 		toFile(dot)
 
-def chooseColor(win,brightRed,brighGreen,brightBlue):
+def chooseColor(win,brightRed,brightGreen,brightBlue):
 	"""win: -1 or 0 or 1, bright*: bool.
 	Returns a color str"""
 	if win == -1:
 		if brightRed: return "red"
-		return "lightred"
+		return "pink"
 	if win == 0:
 		if brightBlue: return "blue"
 		return "lightblue"
 	if win == 1:
 		if brightGreen: return "green"
-		return "green"
+		return "lightgreen"
 
 
 def create_graph(circle=False):

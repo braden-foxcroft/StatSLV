@@ -32,6 +32,9 @@ ParserPrint.add_argument('-printa',"-pa",action='store_true',help="'print' will 
 ParserPrint.add_argument('-printc',"-pc",action='store_true',help="'print' will be treated like 'printc'.")
 ParserPrint.add_argument('-printr',"-pr",action='store_true',help="'print' will be treated like 'printr'.")
 
+ParserPrint = parser.add_argument_group('Graph generation options')
+ParserPrint.add_argument('-graph',action='store_true',help="Make a graph of the results.")
+# TODO all graph generation options.
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
@@ -102,15 +105,21 @@ class Data:
 
 class MD:
     """Data about a context: the odds of occuring, and the name of the graph node used for the state."""
-    def __init__(this,odds=Fraction(0,1),nodeId=None):
+    graph = None
+
+    def __init__(this,odds=Fraction(0,1),nodeIds=None):
         this.odds = odds
-        this.id = nodeId
+        if isinstance(odds,str): raise Exception("MD took str for odds")
+        if nodeIds == None:
+            this.ids = []
+        else:
+            this.ids = nodeIds
 
     def __add__(this,other):
-        return MD(this.odds + other.odds, this.id)
+        return MD(this.odds + other.odds, this.ids + other.ids)
 
     def __lt__(this,other):
-        return (this.odds,this.id) < (other.odds,other.id)
+        return (this.odds,this.ids) < (other.odds,other.ids)
 
 
 class Contexts:
@@ -237,28 +246,33 @@ def runCommand(ast,varLookup,data,conts):
                 error("Error: 'select' statement recieved an empty list of options!\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Save to the final context
             newOdds = md.odds * Frac(1,len(newCons2))
-            newMd = MD(newOdds,md.id)
+            newMd = MD(newOdds,md.ids)
             for con in newCons2:
                 newConts += con,newMd
         return newConts.discard(ast.discardsInt)
     elif ast.val == "nop":
         return conts
     elif ast.val == "pass":
+        # TODO pass, fail, done, return for graph nodes.
         for con,md in conts:
             data.doPass(md.odds)
+            for nodeId in md.ids: MD.graph.nodePass(nodeId)
         return Contexts()
     elif ast.val == "fail":
         for con,md in conts:
             data.doFail(md.odds)
+            for nodeId in md.ids: MD.graph.nodeFail(nodeId)
         return Contexts()
     elif ast.val == "done":
         for con,md in conts:
             data.doDone(md.odds)
+            for nodeId in md.ids: MD.graph.nodeDone(nodeId)
         return Contexts()
     elif ast.val == "return":
         for con,md in conts:
             res = doEval(ast[0],con,md.odds)
             data.doReturn(res,md.odds)
+            for nodeId in md.ids: MD.graph.nodeDone(nodeId)
         return Contexts()
     elif ast.val == "for":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
@@ -395,8 +409,18 @@ def runCommand(ast,varLookup,data,conts):
     elif ast.val == "!":
         # TODO implement this.
         # It should add a node to the graph, if a graph is being constructed.
-        error("'!' command not implemented.")
-        return conts
+        newConts = Contexts()
+        for con,md in conts:
+            odds = md.odds
+            oldIds = md.ids
+            label = str(doEval(ast[0],con,odds))
+            newId = MD.graph.newNode(label,odds)
+            for oldId in oldIds:
+                MD.graph.addEdge(oldId, newId)
+            newConts += con,MD(odds,[newId])
+            # TODO is this right?
+            # TODO MD will track multiple nodes.
+        return newConts
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
     error(f"No return value for runCommand: {orange(ast.val.val)}")
@@ -493,9 +517,10 @@ def doEval(ast,cont,odds):
 ast = parse(fileS)
 ast = deAlias(ast)
 ast,varLookup = addMetadata(ast)
+MD.graph = graph.Graph(False) # TODO 'dummy' param
 d = Data()
 c = Contexts()
-c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
+c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),["root"])
 
 def strFrac(res, returnInstead=False):
     """Returns a Fraction as a colored fraction str."""
@@ -608,3 +633,6 @@ else:
     res = Frac(d._pass,d._pass+d._fail)
     showResult(res)
 
+
+if args.graph:
+    MD.graph.convert()

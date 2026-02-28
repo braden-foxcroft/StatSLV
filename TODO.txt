@@ -7,4 +7,5 @@
 	- Add graph node tracking to main.py paths
 	- Add new command: mark (!) which allows you to create new nodes
 	- Add a bunch of command-line args. See graph.Graph.convert for list of info needed.
+	- MD now tracks id of path. It should be able to track multiple IDs.
 
