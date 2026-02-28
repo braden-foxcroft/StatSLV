@@ -47,6 +47,7 @@ parserDebug.add_argument('-DebugStaticAnalysis','-dsa', action="store_true",help
 parserDebug.add_argument('-DebugDiscards','-dd', action="store_true",help="Show a debug of the discards of the program")
 parserDebug.add_argument('-DebugReconstruct','-dr', action="store_true",help="Display the original program, as interpreted by the parser.")
 parserDebug.add_argument('-DebugAST','-da', action="store_true",help="Display the Raw AST")
+parserDebug.add_argument('-DebugAllowNull','-dn', action="store_true",help="If a variable is not given a value, it will have the value 'None'")
 
 args = parser.parse_args()
 #print(args)
@@ -397,39 +398,11 @@ def doEval(ast,cont,odds):
     Returns the expression result."""
     # TODO type validation, list operations.
     if ast.nodeType == "expr":
-        return doEval(ast[0],cont,odds)
+        res = doEval(ast[0],cont,odds)
+        if res == None and not args.DebugAllowNull:
+            error(f"expr could not solve. Missing var?\n"+ast[0].val.line)
+        return res
     if ast.nodeType == "opB":
-        if ast.val == "+":
-            r1 = doEval(ast[0],cont,odds)
-            r2 = doEval(ast[1],cont,odds)
-            if isinstance(r1,str) or isinstance(r2,str):
-                r1,r2 = str(r1),str(r2)
-            return r1 + r2
-        if ast.val == "-": return doEval(ast[0],cont,odds) - doEval(ast[1],cont,odds)
-        if ast.val == "*": return doEval(ast[0],cont,odds) * doEval(ast[1],cont,odds)
-        if ast.val == "//": return doEval(ast[0],cont,odds) // doEval(ast[1],cont,odds)
-        if ast.val == "/": return Frac(doEval(ast[0],cont,odds),doEval(ast[1],cont,odds))
-        if ast.val == "%": return doEval(ast[0],cont,odds) % doEval(ast[1],cont,odds)
-        if ast.val == ",":
-            r1 = doEval(ast[0],cont,odds)
-            r2 = doEval(ast[1],cont,odds)
-            if not isinstance(r1,tuple): r1 = (r1,)
-            if not isinstance(r2,tuple): r2 = (r2,)
-            return r1 + r2
-        if ast.val == "to":
-            r1 = doEval(ast[0],cont,odds)
-            r2 = doEval(ast[1],cont,odds)
-            if not isinstance(r1,int):
-                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
-            if not isinstance(r2,int):
-                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
-            return tuple(range(r1,r2+1))
-        if ast.val == "==": return int(doEval(ast[0],cont,odds) == doEval(ast[1],cont,odds))
-        if ast.val == "!=": return int(doEval(ast[0],cont,odds) != doEval(ast[1],cont,odds))
-        if ast.val == "<=": return int(doEval(ast[0],cont,odds) <= doEval(ast[1],cont,odds))
-        if ast.val == ">=": return int(doEval(ast[0],cont,odds) >= doEval(ast[1],cont,odds))
-        if ast.val == "<": return int(doEval(ast[0],cont,odds) < doEval(ast[1],cont,odds))
-        if ast.val == ">": return int(doEval(ast[0],cont,odds) > doEval(ast[1],cont,odds))
         if ast.val == "or":
             res = doEval(ast[0],cont,odds)
             if res: return res
@@ -438,15 +411,38 @@ def doEval(ast,cont,odds):
             res = doEval(ast[0],cont,odds)
             if not res: return res
             return doEval(ast[1],cont,odds)
+        r1 = doEval(ast[0],cont,odds)
+        r2 = doEval(ast[1],cont,odds)
+        if ast.val == "+":
+            if isinstance(r1,str) or isinstance(r2,str):
+                r1,r2 = str(r1),str(r2)
+            return r1 + r2
+        if ast.val == "-": return r1 - r2
+        if ast.val == "*": return r1 * r2
+        if ast.val == "//": return r1 // r2
+        if ast.val == "/": return Frac(r1,r2)
+        if ast.val == "%": return r1 % r2
+        if ast.val == ",":
+            if not isinstance(r1,tuple): r1 = (r1,)
+            if not isinstance(r2,tuple): r2 = (r2,)
+            return r1 + r2
+        if ast.val == "to":
+            if not isinstance(r1,int):
+                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
+            if not isinstance(r2,int):
+                error(f"'to' operator recieved non-int input:\n"+ast.val.line)
+            return tuple(range(r1,r2+1))
+        if ast.val == "==": return int(r1 == r2)
+        if ast.val == "!=": return int(r1 != r2)
+        if ast.val == "<=": return int(r1 <= r2)
+        if ast.val == ">=": return int(r1 >= r2)
+        if ast.val == "<": return int(r1 < r2)
+        if ast.val == ">": return int(r1 > r2)
         if ast.val == "in":
-            r1 = doEval(ast[0],cont,odds)
-            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r2,tuple):
                 error(f"'in' operator recieved non-list input on right:\n"+ast.val.line)
             return int(r1 in r2)
         if ast.val == ".":
-            r1 = doEval(ast[0],cont,odds)
-            r2 = doEval(ast[1],cont,odds)
             if not isinstance(r1,Frac) and not isinstance(r1,int):
                 error(f"'.' operator recieved non-numeric input on left:\n"+ast.val.line)
             if not isinstance(r2,int):
@@ -461,9 +457,15 @@ def doEval(ast,cont,odds):
                 error(f"'sorted' function recieved non-tuple input:\n"+ast.val.line)
             return tuple(sorted(r1))
     if ast.nodeType == "var":
-        if ast.val.raw == "$": return odds
-        if ast.varId == None: return None
-        return cont[ast.varId]
+        if ast.val.raw == "$":
+            res = odds
+        elif ast.varId == None:
+            res = None
+        else:
+            res = cont[ast.varId]
+        if res == None and not args.DebugAllowNull:
+            error(f"var \"{str(ast.val.raw)}\" did not have a value:\n{ast.val.line}")
+        return res
     if ast.nodeType == "int": return ast.val.val
     if ast.nodeType == "str": return ast.val.val
     if ast.nodeType == "list": return ast.val.val
