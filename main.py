@@ -100,39 +100,51 @@ class Data:
     def doReturn(this,value,odds):
         this._returns[value] += odds
 
+class MD:
+    """Data about a context: the odds of occuring, and the name of the graph node used for the state."""
+    def __init__(this,odds=Fraction(0,1),nodeId=None):
+        this.odds = odds
+        this.id = nodeId
+
+    def __add__(this,other):
+        return MD(this.odds + other.odds, this.id)
+
+    def __lt__(this,other):
+        return (this.odds,this.id) < (other.odds,other.id)
+
 
 class Contexts:
     """A collection of variable states and their odds of occuring"""
     def __init__(this):
-        this._cons = dd()
+        this._cons = defaultdict(MD)
     def __iter__(this): return iter([(con,this._cons[con]) for con in this._cons])
     def __iadd__(this,con):
         """Takes a tuple,odds pair. Adds it to the dict."""
-        con,odds = con # Split into the variable values and the context.
-        this._cons[con] += odds
+        con,md = con # Split into the variable values and the context.
+        this._cons[con] += md
         return this
     def __add__(this,other):
         """Joins two sets of contexts"""
-        for con,odds in other:
-            this._cons[con] += odds
+        for con,md in other:
+            this._cons[con] += md
         return this
     def __repr__(this):
         return repr(this._cons)
     def assign(this,var,val):
         """Creates a new context, assigning the val to the var. Takes the var as an int."""
         c = Contexts()
-        for con,odds in this:
-            c += setVar(con,var,val),odds
+        for con,md in this:
+            c += setVar(con,var,val),md
         return c
     def discard(this,setInts):
         """Takes a set of integer vars to delete. Sets them to 'None'."""
         if setInts == set() or nd:
             return this
         c = Contexts()
-        for con,odds in this:
+        for con,md in this:
             for var in setInts:
                 con = setVar(con,var,None)
-            c += con,odds
+            c += con,md
         return c
 
 gottenInput = []
@@ -206,9 +218,9 @@ def runCommand(ast,varLookup,data,conts):
         expr = ast[1]
         cond = ast[2]
         # For each context, apply the select.
-        for con,odds in conts:
+        for con,md in conts:
             # Determine the options for the select
-            vals = doEval(expr,con,odds)
+            vals = doEval(expr,con,md.odds)
             if not isinstance(vals,tuple):
                 error("Error: 'select' statement expression returned non-list.\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Generate the new contexts
@@ -218,43 +230,44 @@ def runCommand(ast,varLookup,data,conts):
             # Filter by validity
             newCons2 = []
             for con in newCons:
-                valid = doEval(cond,con,odds)
+                valid = doEval(cond,con,md.odds)
                 if valid:
                     newCons2.append(con)
             if len(newCons2) == 0:
                 error("Error: 'select' statement recieved an empty list of options!\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Save to the final context
-            newOdds = odds * Frac(1,len(newCons2))
+            newOdds = md.odds * Frac(1,len(newCons2))
+            newMd = MD(newOdds,md.id)
             for con in newCons2:
-                newConts += con,newOdds
+                newConts += con,newMd
         return newConts.discard(ast.discardsInt)
     elif ast.val == "nop":
         return conts
     elif ast.val == "pass":
-        for con,odds in conts:
-            data.doPass(odds)
+        for con,md in conts:
+            data.doPass(md.odds)
         return Contexts()
     elif ast.val == "fail":
-        for con,odds in conts:
-            data.doFail(odds)
+        for con,md in conts:
+            data.doFail(md.odds)
         return Contexts()
     elif ast.val == "done":
-        for con,odds in conts:
-            data.doDone(odds)
+        for con,md in conts:
+            data.doDone(md.odds)
         return Contexts()
     elif ast.val == "return":
-        for con,odds in conts:
-            res = doEval(ast[0],con,odds)
-            data.doReturn(res,odds)
+        for con,md in conts:
+            res = doEval(ast[0],con,md.odds)
+            data.doReturn(res,md.odds)
         return Contexts()
     elif ast.val == "for":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
-        for con,odds in conts:
+        for con,md in conts:
             # Find range
-            rng = doEval(ast[1],con,odds)
+            rng = doEval(ast[1],con,md.odds)
             if not isinstance(rng,tuple):
                 error("'for' loop expr did not return list:\n"+var.val.line)
-            blocks[rng] += con,odds
+            blocks[rng] += con,md
         newConts = Contexts()
         for block in blocks:
             subConts = blocks[block]
@@ -269,25 +282,25 @@ def runCommand(ast,varLookup,data,conts):
         return newConts
     elif ast.val == "bychance":
         newConts = Contexts()
-        for con,odds in conts:
-            valid = doEval(ast[0],con,odds)
+        for con,md in conts:
+            valid = doEval(ast[0],con,md.odds)
             if not isinstance(valid,int):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
             if valid != 0:
-                newConts += con,odds
+                newConts += con,md
         return newConts.discard(ast.discardsInt)
     elif ast.val == "if":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
-        for con,odds in conts:
+        for con,md in conts:
             i = iter(ast)
             for expr in i:
                 block = next(i)
-                valid = doEval(expr,con,odds)
+                valid = doEval(expr,con,md.odds)
                 if valid:
-                    blocks[block] += con,odds
+                    blocks[block] += con,md
                     break
             else:
-                blocks[None] += con,odds
+                blocks[None] += con,md
         newConts = Contexts()
         for block in blocks:
             if block == None:
@@ -300,8 +313,8 @@ def runCommand(ast,varLookup,data,conts):
     elif ast.val == "printc" or (ast.val == "print" and args.printc):
         # Print each item, tracking count.
         toPrint = []
-        for con,odds in conts:
-            toPrint.append(str(doEval(ast[0],con,odds)))
+        for con,md in conts:
+            toPrint.append(str(doEval(ast[0],con,md.odds)))
         toPrintAgg = defaultdict(int)
         maxLen = 0
         for val in toPrint:
@@ -324,9 +337,9 @@ def runCommand(ast,varLookup,data,conts):
         # Print each item, tracking likelyhood. Use the likelyhood given that the print statement occured, not the absolute likelyhood.
         toPrint = defaultdict(Fraction)
         totalOdds = Fraction(0)
-        for con,odds in conts:
-            toPrint[str(doEval(ast[0],con,odds))] += odds
-            totalOdds += odds
+        for con,md in conts:
+            toPrint[str(doEval(ast[0],con,md.odds))] += md.odds
+            totalOdds += md.odds
         keys = sorted(toPrint,key=stringSortKey)
         if keys == [""]:
             print()
@@ -343,8 +356,8 @@ def runCommand(ast,varLookup,data,conts):
     elif ast.val == "printa" or ast.val == "print":
         # Print each item, tracking the absolute probability of the print occurring at this moment in time.
         toPrint = defaultdict(Fraction)
-        for con,odds in conts:
-            toPrint[str(doEval(ast[0],con,odds))] += odds
+        for con,md in conts:
+            toPrint[str(doEval(ast[0],con,md.odds))] += md.odds
         keys = sorted(toPrint,key=stringSortKey)
         if keys == [""]:
             print()
@@ -360,24 +373,24 @@ def runCommand(ast,varLookup,data,conts):
         return conts.discard(ast.discardsInt)
     elif ast.val == "set":
         newConts = Contexts()
-        for con,odds in conts:
-            res = doEval(ast[2],con,odds)
+        for con,md in conts:
+            res = doEval(ast[2],con,md.odds)
             con = setVar(con,ast[0].varId,res)
-            newConts += con,odds
+            newConts += con,md
         return newConts.discard(ast.discardsInt)
     elif ast.val == "input":
         newConts = Contexts()
         inpCountId = varLookup["~inpCount~"]
         allDisps = defaultdict(list)
-        for con,odds in conts:
-            toDisp = doEval(ast[1],con,odds)
+        for con,md in conts:
+            toDisp = doEval(ast[1],con,md.odds)
             inpCount = con[inpCountId]
-            allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),odds))
+            allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),md))
         keys = sorted(allDisps)
         for toDisp,inpCount in keys:
             res = doInput(toDisp,inpCount)
-            for con,odds in allDisps[toDisp,inpCount]:
-                newConts += setVar(con,ast[0].varId,res),odds
+            for con,md in allDisps[toDisp,inpCount]:
+                newConts += setVar(con,ast[0].varId,res),md
         return newConts
     elif ast.val == "!":
         # TODO implement this.
@@ -482,7 +495,7 @@ ast = deAlias(ast)
 ast,varLookup = addMetadata(ast)
 d = Data()
 c = Contexts()
-c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),Frac(1,1)
+c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
 
 def strFrac(res, returnInstead=False):
     """Returns a Fraction as a colored fraction str."""
