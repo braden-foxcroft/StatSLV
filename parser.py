@@ -96,7 +96,7 @@ class Token:
     
     # A set of keyword and operator literals. An item may appear in both. Items in either will not be considered variable names.
     operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "sorted", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "printa", "printc", "printr", "nop", "input", "sorted", "{", "}", "\n","()","$","_"}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "printa", "printc", "printr", "nop", "input", "sorted", "{", "}", "\n","()","$","_","!"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -535,7 +535,7 @@ def parseCommand(s):
         com = s.pop()
         expect(s,"\n")
         return AST(com,[],"command")
-    if s.peek in ["return","print","printa","printc","printr"]:
+    if s.peek in ["return","print","printa","printc","printr","!"]:
         com = s.pop()
         # Take a single expr argument (otherwise an empty string.)
         if s.peek == "\n":

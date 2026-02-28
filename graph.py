@@ -5,21 +5,21 @@ from fractions import Fraction
 
 # Try importing Graphviz
 try:
-    import graphviz
+	import graphviz
 except ImportError:
-    error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\n(You will also need to install the graphviz executable, if you haven't done so already)")
+	error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\n(You will also need to install the graphviz executable, if you haven't done so already)")
 
 # Do a dry run to confirm that graphviz works.
 from graphviz import Digraph
 from graphviz.backend import ExecutableNotFound
 try:
-    dot = Digraph()
-    dot.edge("A", "B")
-    dot.pipe(format="png")
+	dot = Digraph()
+	dot.edge("A", "B")
+	dot.pipe(format="png")
 except ExecutableNotFound:
-    error(f"Graphviz executable 'dot' not found in PATH. On Linux, install it with:\n\tsudo apt install graphviz\nFor Windows, download it from the website: \n\thttps://graphviz.org/download/\n(Use the EXE installer, and make sure you ask the installer to add it to the PATH! You may need to close and re-open the console for it to take effect.)")
+	error(f"Graphviz executable 'dot' not found in PATH. On Linux, install it with:\n\tsudo apt install graphviz\nFor Windows, download it from the website: \n\thttps://graphviz.org/download/\n(Use the EXE installer, and make sure you ask the installer to add it to the PATH! You may need to close and re-open the console for it to take effect.)")
 except Exception as e:
-    error(f"Unknown Graphviz error: {e}")
+	error(f"Unknown Graphviz error: {e}")
 
 # ----------------------------------------
 # End of imports
@@ -36,7 +36,7 @@ class Node:
 			this.id = theId
 		this.label = label
 		this.odds = odds
-		this.color = None
+		this.win = None
 		this._parents = set()
 		this._children = set()
 
@@ -47,8 +47,8 @@ class Node:
 			res += "\nlabel = {this.label}"
 		if this.odds != None:
 			res += "\nodds = {this.odds}"
-		if this.color != None:
-			res += "\ncolor = {this.color}"
+		if this.win != None:
+			res += "\nwin = {this.win}"
 		if this._parents:
 			res += "\nparents = {this._parents}"
 		if this._children:
@@ -96,55 +96,165 @@ class Graph:
 
 	def __init__(this):
 		this.root = Node(None,"",Fraction(1,1))
-		this.nodes = set()
-		this.nodes.add(this.root)
+		this.nodes = dict()
+		this.nodes["root"] = this.root
 
-	# TODO function for adding nodes
-	# TODO function for linking nodes
-	# TODO function for marking as pass/fail.
-	# TODO function for removing a -> b -> c where b is singular.
-	# TODO function for final cleanup: propagating pass/fail
+	def __getitem__(this,theId):
+		return this.nodes[theId]
+
+	def __iter__(this):
+		return iter(this.nodes)
+
+	def newNode(this,label,odds):
+		"""
+		Adds a node.
+		
+		Takes:
+		str label
+		Fraction odds
+		
+		Returns a str node id
+		"""
+		n = Node(theId,name,label,odds)
+		this.nodes[n.id] = n
+		return n.id
 
 
-# ----------------------------------------------------
-# TODO this is AI-generated
+	def addEdge(this,sourceId,destId):
+		"""Adds an edge. Takes str ids"""
+		this[sourceId] > this[destId]
 
 
-def create_graph():
-    dot = Digraph(name="mygraph",format="pdf")
-    dot.attr(rankdir="TB")
-    dot.attr("node", shape="oval", style="filled")
-    return dot
+	def nodePass(this,theId):
+		"""Marks a node as pass"""
+		node = this[therId]
+		if node.win == -1 or node.win == 0:
+			node.win = 0
+		if node.win == 1 or node.win == None:
+			node.win = 1
+	def nodeFail(this,theId):
+		"""Marks a node as fail"""
+		node = this[therId]
+		if node.win == 1 or node.win == 0:
+			node.win = 0
+		if node.win == -1 or node.win == None:
+			node.win = -1
+	
+	def removeAllLinear(this):
+		"""Remove any node with 1 parent and 1 child"""
+		# TODO check what happens if only 1 node remains.
+		toDel = []
+		for nodeId in this:
+			node = this[nodeId]
+			# Skip if not linear
+			if len(node._parents) != 1 or len(node._children) != 1: continue
+			# Remove linear node.
+			parent = list(node._parents)[0]
+			child = list(node._children)[0]
+			parent - node
+			node - child
+			parent > child
+			toDel.append(nodeId)
+		for nodeId in toDel:
+			del this.nodes[nodeId]
+
+	def cleanup(this,node=None):
+		"""Determines pass/fail for each node"""
+		# Use root if not specified
+		if node == None: node = this.root
+		if node.win != None: return
+		if len(node) == 0:
+			node.win = 0
+			return
+		for child in node:
+			this.cleanup(child)
+		willPass = True
+		willFail = True
+		for child in node:
+			if child.win !=  1: willPass = False
+			if child.win != -1: willFail = False
+		if willPass:
+			node.win = 1
+		elif willFail:
+			node.win = -1
+		else:
+			node.win = 0
+		return
+
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,removeLinear=False,useCircle=False,colorEdges=False,file="output"):
+		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
+		if removeLinear: this.removeAllLinear() # get rid of linear nodes if needed.
+		this.cleanup() # figure out all necessary win/lose.
+		dot = create_graph(useCircle)
+		for nodeId in this:
+			node = this[nodeId]
+			add_node(dot,node.id,node.label,chooseColor(node.win,brightRed,brightGreen,brightBlue))
+		for nodeId in this:
+			node = this[nodeId]
+			for other in node:
+				label = None
+				color = "black"
+				if labelEdges: label = str(Fraction(other.odds / this.odds))
+				if colorEdges:
+					if other.win == 1: color = "green"
+					if other.win == -1: color = "red"
+				add_edge(dot, node.id, other.id, label, color)
+		toFile(dot)
+
+def chooseColor(win,brightRed,brighGreen,brightBlue):
+	"""win: -1 or 0 or 1, bright*: bool.
+	Returns a color str"""
+	if win == -1:
+		if brightRed: return "red"
+		return "lightred"
+	if win == 0:
+		if brightBlue: return "blue"
+		return "lightblue"
+	if win == 1:
+		if brightGreen: return "green"
+		return "green"
+
+
+def create_graph(circle=False):
+	"""Creates a dot object. Takes a bool (circle or not)"""
+	if circle: shape = "circle"
+	else: shape = "oval"
+	dot = Digraph(name="mygraph",format="pdf")
+	dot.attr(rankdir="TB")
+	dot.attr("node", shape=shape, style="filled")
+	return dot
 
 
 def add_node(dot, node_id, label=None, color="lightgray"):
-    """
-    Takes:
-    str node_id
-    str label
-    str color
-    """
-    if label == None: label = node_id
-    dot.node(node_id, label=label, fillcolor=color)
+	"""Takes:
+	dot
+	str node_id
+	str label
+	str color
+	"""
+	if label == None: label = node_id
+	dot.node(node_id, label=label, fillcolor=color)
 
 
 def add_edge(dot, from_id, to_id, label=None, color="black"):
-    """
-    str from_id
-    str to_id
-    str label
-    str color
-    """
-    if label:
-        dot.edge(from_id, to_id, label=label, color=color)
-    else:
-        dot.edge(from_id, to_id, color=color)
+	"""Takes:
+	dot
+	str from_id
+	str to_id
+	str label
+	str color
+	"""
+	if label:
+		dot.edge(from_id, to_id, label=label, color=color)
+	else:
+		dot.edge(from_id, to_id, color=color)
 
 
 def toFile(dot,file="output"):
-    dot.render(file, cleanup=True, view=True)
+	"""Converts the dot object to a file."""
+	dot.render(file, cleanup=True, view=True)
 
-
+""" Example
 dot = create_graph()
 add_node(dot,"a","A","pink")
 add_node(dot,"b","B","lightblue")
@@ -157,4 +267,4 @@ add_edge(dot,"b","c")
 add_edge(dot,"b2","c")
 
 toFile(dot)
-
+"""

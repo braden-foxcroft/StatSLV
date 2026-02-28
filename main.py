@@ -66,7 +66,6 @@ if args.NoColor or (not sys.stdout.isatty() and not args.isatty):
     Color.doColor = False
 
 
-
 try:
     with open(args.file,"rt",newline='') as file: fileS = file.read()
 except:
@@ -380,6 +379,11 @@ def runCommand(ast,varLookup,data,conts):
             for con,odds in allDisps[toDisp,inpCount]:
                 newConts += setVar(con,ast[0].varId,res),odds
         return newConts
+    elif ast.val == "!":
+        # TODO implement this.
+        # It should add a node to the graph, if a graph is being constructed.
+        error("'!' command not implemented.")
+        return conts
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
     error(f"No return value for runCommand: {orange(ast.val.val)}")

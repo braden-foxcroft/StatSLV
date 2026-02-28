@@ -4,4 +4,7 @@
 - Documentation and code samples
 - Clean up command-line args. Soo many.
 - Show its work (using graphs, graphviz and DOT)
+	- Add graph node tracking to main.py paths
+	- Add new command: mark (!) which allows you to create new nodes
+	- Add a bunch of command-line args. See graph.Graph.convert for list of info needed.
 
