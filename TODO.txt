@@ -7,5 +7,11 @@
 	- Add graph node tracking to main.py paths
 	- Add new command: mark (!) which allows you to create new nodes
 	- Add a bunch of command-line args. See graph.Graph.convert for list of info needed.
-	- MD now tracks id of path. It should be able to track multiple IDs.
+	- Add 'gray' and 'darkgray' options for paths killed by bychance statements.
+	- Test graph creation
+	- Graphs and variable discards. How will this work?
+	- 'no discard' flag and temporary (~1~) variables: how will _that_ work?
+	- MD object should use sets of ids, not lists.
+	- Graph use circles, where radius is determined by odds of ocurring.
+	- Math errors in labels of edges: see 90heads
 
