@@ -50,7 +50,7 @@ ParserPrint.add_argument('-graphColorBorders','-gcb',action='store_true',help="C
 ParserPrint.add_argument('-graphNoProgress','-gnp','-gnd',action='store_true',help="Don't show the progress of making the graph.")
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
-parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
+parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting 'done' cases to 'fail' or 'pass'.")
 parserExtraDisp.add_argument('-noAgg','-na',action='store_true',help="Don't aggregate printc statements. Don't display odds for printa and printr statements")
 parserExtraDisp.add_argument('-intAllowed','-i',action='store_true',help="Fractions will be displayed as integers whenever possible.")
 parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
