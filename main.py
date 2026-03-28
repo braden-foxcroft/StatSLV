@@ -60,6 +60,9 @@ args = parser.parse_args()
 if not (args.p or args.P != None or args.d or args.D != None or args.f or args.F != None or args.b or args.B != None):
     args.f = True
 
+if args.graph:
+    graph.doImports()
+
 
 # No discards
 nd = args.DebugNoDiscards
@@ -78,10 +81,10 @@ if args.DebugReconstruct:
     print(deAlias(parse(fileS)).reconstruct())
     exit(0)
 if args.DebugStaticAnalysis:
-    testExample(fileS)
+    testExample(fileS,nd)
     exit(0)
 if args.DebugDiscards:
-    showDiscards(fileS)
+    showDiscards(fileS,nd)
     exit(0)
 if args.DebugAST:
     print(deAlias(parse(fileS)))
@@ -151,7 +154,7 @@ class Contexts:
         return c
     def discard(this,setInts):
         """Takes a set of integer vars to delete. Sets them to 'None'."""
-        if setInts == set() or nd:
+        if setInts == set():
             return this
         c = Contexts()
         for con,md in this:

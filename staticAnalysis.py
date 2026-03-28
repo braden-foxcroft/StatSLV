@@ -4,7 +4,7 @@
 Important methods:
 setColor(bool) determines if the module uses color for console prints.
 deAlias(ast) returns an AST without inline 'select' or 'input' statements.
-addMetadata(ast) modifies the AST by adding 'discard' attributes to commands,
+addMetadata(ast,noDiscards) modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
 
@@ -16,15 +16,15 @@ from color import *
 
 # A file for carrying out static analysis. Modifies the AST to be easier to execute, and to track when variables should vanish.
 
-def showDiscards(exampleStr):
+def showDiscards(exampleStr,noDiscards=False):
     """Shows the static analysis info from code, for discards only"""
-    p,m = addMetadata(deAlias(parse(exampleStr)))
+    p,m = addMetadata(deAlias(parse(exampleStr)),noDiscards)
     print(red("discards:"))
     print(p.reconstruct(funcArg = lambda n:n.discards or None))
 
-def testExample(exampleStr):
+def testExample(exampleStr,noDiscards=False):
     """Shows the static analysis info from the code, so you can see how things worked"""
-    p,m = addMetadata(deAlias(parse(exampleStr)))
+    p,m = addMetadata(deAlias(parse(exampleStr)),noDiscards)
     print(red("code:"))
     print(p.reconstruct())
     print(red("prevs:"))
@@ -44,7 +44,7 @@ def testExample(exampleStr):
 # Code for de-aliasing below.
 def deAlias(ast):
     """A function which removes aliases from an AST.
-    At the moment, only affects 'select' function/unary operator calls."""
+    At the moment, only affects 'select' and 'input' function/unary operator calls."""
     return ast.modify(deAliasSelect)
 
 def deAliasSelect(ast):
@@ -55,42 +55,51 @@ def deAliasSelect(ast):
     # An AST node representing 'True' for the purposes of a 'select' statement.
     trueAst = AST(Token("expr",ast.val.pos,"'select' statement macro put on separate line."),[AST(Token("1",ast.val.pos,val=1),[],"int")],"expr")
     # Go through and modify the AST.
+    varList = set()
     for child in ast:
         if child.nodeType == "expr":
-            newChild,toSelectAdd,nextFree = deAliasExpr(child,nextFree,child,trueAst)
+            newChild,toSelectAdd,nextFree,newVarList = deAliasExpr(child,nextFree,child,trueAst)
             newChildren.append(newChild)
             res += toSelectAdd
+            varList |= newVarList
         else:
             newChildren.append(child)
-    res.append(AST(ast.val,newChildren,"command"))
+    # TODO use varList for discards vars set
+    newNode = AST(ast.val,newChildren,"command")
+    newNode.discards = varList
+    res.append(newNode)
     return res
 
 def deAliasExpr(node,nextFree,exprRoot,trueAst):
     """A recursive function which de-aliases expressions.
     takes an AST (expr or sub-expr) and an int (saying what ~number~ var is free next).
         Also takes an "expr" ast root, used for generating new expr nodes as needed.
-    Returns a new AST, a list of var-expr pairs to select, and a new int."""
+    Returns a new AST, a list of var-expr pairs to select, a new int, and a set of vars used."""
     if node.nodeType == "opU" and node.val == "select":
-        expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
+        expr,pairs,nextFree,varList = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
         var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
         expr = AST(exprRoot.val,[expr],"expr")
         newNode = AST(Token("select",var.val.pos,f"select {var} from {expr.reconstruct(0)}"),[var,expr,trueAst],"command")
         pairs.append(newNode)
-        return var,pairs,nextFree+1
+        varList.add(f"~{nextFree}~")
+        return var,pairs,nextFree+1,varList
     if node.nodeType == "opU" and node.val == "input":
-        expr,pairs,nextFree = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
+        expr,pairs,nextFree,varList = deAliasExpr(node[0],nextFree,exprRoot,trueAst)
         var = AST(Token(f"~{nextFree}~",node.val.pos,"System-generated line"),[],"var")
         expr = AST(exprRoot.val,[expr],"expr")
         newNode = AST(Token("input",var.val.pos,f"input {var} {expr.reconstruct(0)}"),[var,expr],"command")
         pairs.append(newNode)
-        return var,pairs,nextFree+1
+        varList.add(f"~{nextFree}~")
+        return var,pairs,nextFree+1,varList
     children = []
     pairs = []
+    varList = set()
     for child in node:
-        newChild,newPairs,nextFree = deAliasExpr(child,nextFree,exprRoot,trueAst)
+        newChild,newPairs,nextFree,newVarList = deAliasExpr(child,nextFree,exprRoot,trueAst)
         children.append(newChild)
         pairs += newPairs
-    return AST(node.val,children,node.nodeType),pairs,nextFree
+        varList |= newVarList
+    return AST(node.val,children,node.nodeType),pairs,nextFree,varList
 
 
 def findVarNames(ast):
@@ -165,7 +174,7 @@ def addCommandDefaults(ast):
     ast.varsNeeded = set()
     ast.varsHad = set()
     ast.varsMade = set()
-    ast.discards = set()
+    ast.discards = ast.discards or set()
     ast.discardsInt = set()
     return
 
@@ -270,7 +279,7 @@ def getIntDiscards(ast,m):
 
 
 
-def addMetadata(ast):
+def addMetadata(ast,noDiscards):
     """modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
     Adds 'jump' tag to tell where each 'break' or 'continue' ends up.
@@ -285,15 +294,16 @@ def addMetadata(ast):
     ast.forAll(varUseAndAssign)
     # The first line also uses "~inpCount~", to ensure proper discards
     if len(ast): ast[0].varsMade.add("~inpCount~")
-    # Figure out which lines precede which lines. Note that 'for' loops have unconventional ordering.
-    determinePrevs(ast)
-    # Add 'nexts' based on the 'prevs'
-    ast.forAll(setNexts)
-    # determines varsNeeded.
-    getVarsNeeded(ast)
-    # determines varsHad, discards
-    getVarsHad(ast)
-    getIntDiscards(ast,m)
+    if not noDiscards:
+        # Figure out which lines precede which lines. Note that 'for' loops have unconventional ordering.
+        determinePrevs(ast)
+        # Add 'nexts' based on the 'prevs'
+        ast.forAll(setNexts)
+        # determines varsNeeded.
+        getVarsNeeded(ast)
+        # determines varsHad, discards
+        getVarsHad(ast)
+    getIntDiscards(ast,m) # Discards are also added by de-aliasing. These should occur regardless.
     return ast,m
 
 

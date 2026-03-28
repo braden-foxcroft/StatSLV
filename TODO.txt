@@ -14,4 +14,4 @@
 	- MD object should use sets of ids, not lists.
 	- Graph use circles, where radius is determined by odds of ocurring.
 	- Math errors in labels of edges: see 90heads
-
+- Ensuring that parent nodes (for graph generation) are handled as dict: parent -> odds

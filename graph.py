@@ -3,23 +3,26 @@
 from parser import error
 from fractions import Fraction
 
-# Try importing Graphviz
-try:
-	import graphviz
-except ImportError:
-	error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\n(You will also need to install the graphviz executable, if you haven't done so already)")
+def doImports():
+	global graphviz
+	global Digraph
+	# Try importing Graphviz
+	try:
+		import graphviz
+	except ImportError:
+		error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\n(You will also need to install the graphviz executable, if you haven't done so already)")
 
-# Do a dry run to confirm that graphviz works.
-from graphviz import Digraph
-from graphviz.backend import ExecutableNotFound
-try:
-	dot = Digraph()
-	dot.edge("A", "B")
-	dot.pipe(format="png")
-except ExecutableNotFound:
-	error(f"Graphviz executable 'dot' not found in PATH. On Linux, install it with:\n\tsudo apt install graphviz\nFor Windows, download it from the website: \n\thttps://graphviz.org/download/\n(Use the EXE installer, and make sure you ask the installer to add it to the PATH! You may need to close and re-open the console for it to take effect.)")
-except Exception as e:
-	error(f"Unknown Graphviz error: {e}")
+	# Do a dry run to confirm that graphviz works.
+	from graphviz import Digraph
+	from graphviz.backend import ExecutableNotFound
+	try:
+		dot = Digraph()
+		dot.edge("A", "B")
+		dot.pipe(format="png")
+	except ExecutableNotFound:
+		error(f"Graphviz executable 'dot' not found in PATH. On Linux, install it with:\n\tsudo apt install graphviz\nFor Windows, download it from the website: \n\thttps://graphviz.org/download/\n(Use the EXE installer, and make sure you ask the installer to add it to the PATH! You may need to close and re-open the console for it to take effect.)")
+	except Exception as e:
+		error(f"Unknown Graphviz error: {e}")
 
 # ----------------------------------------
 # End of imports
