@@ -173,9 +173,10 @@ class Graph:
 			# Remove linear node.
 			parent = list(node._parents)[0]
 			child = list(node._children)[0]
+			odds = parent[node]
 			parent - node
 			node - child
-			parent > child
+			parent.link(child,odds)
 			toDel.append(nodeId)
 		for nodeId in toDel:
 			del this.nodes[nodeId]
@@ -208,7 +209,7 @@ class Graph:
 			node.win = 0
 		return
 
-	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,brightGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorBorders=False,showPrints=True,file="output"):
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,darkGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorEdgesDark=False,colorBorders=False,showPrints=True,file="output"):
 		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
 		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
 		if removeLinear:
@@ -222,7 +223,9 @@ class Graph:
 		dot = create_graph(useCircle)
 		for nodeId in this:
 			node = this[nodeId]
-			add_node(dot,node.id,node.label,chooseColor(node.win,brightRed,brightGreen,brightBlue,brightGrey))
+			if labelNodes: label = node.label
+			else: label = ""
+			add_node(dot,node.id,label,chooseColor(node.win,brightRed,brightGreen,brightBlue,darkGrey),node.odds,useCircle,colorBorders)
 		for nodeId in this:
 			node = this[nodeId]
 			for other in node:
@@ -231,28 +234,33 @@ class Graph:
 				if labelEdges:
 					labelFrac = node[other]
 					if labelFrac != 1: label = str(labelFrac)
-				if colorEdges:
-					if other.win == 1: color = "green"
-					if other.win == -1: color = "red"
+				if colorEdgesDark:
+					color = chooseColor(other.win,2,2,2,2)
+				elif colorEdges:
+					color = chooseColor(other.win,brightRed,brightGreen,brightBlue,darkGrey)
 				add_edge(dot, node.id, other.id, label, color)
 		if showPrints: print("Done.")
 		if showPrints: print("Graphviz working...",end="",flush=True)
 		toFile(dot)
 		if showPrints: print("Done.")
 
-def chooseColor(win,brightRed,brightGreen,brightBlue,brightGrey):
-	"""win: -2 or -1 or 0 or 1, bright*: bool.
+def chooseColor(win,brightRed,brightGreen,brightBlue,darkGrey):
+	"""win: -2 or -1 or 0 or 1, bright*: bool or '2'.
 	Returns a color str"""
 	if win == -2:
-		if brightGrey: return "grey"
-		return "darkgrey"
+		if darkGrey == 2: return "black" # Special case
+		if darkGrey: return "darkgrey"
+		return "grey"
 	if win == -1:
+		if brightRed == 2: return "darkred"
 		if brightRed: return "red"
 		return "pink"
 	if win == 0:
+		if brightBlue == 2: return "darkblue"
 		if brightBlue: return "blue"
 		return "lightblue"
 	if win == 1:
+		if brightGreen == 2: return "darkgreen"
 		if brightGreen: return "green"
 		return "lightgreen"
 	raise Exception("chooseColor did not return result!")
@@ -268,7 +276,7 @@ def create_graph(circle=False):
 	return dot
 
 
-def add_node(dot, node_id, label=None, color="lightgray"):
+def add_node(dot, node_id, label=None, color="lightgray", odds=1, useCircle=False,colorBorders=False):
 	"""Takes:
 	dot
 	str node_id
@@ -276,7 +284,12 @@ def add_node(dot, node_id, label=None, color="lightgray"):
 	str color
 	"""
 	if label == None: label = node_id
-	dot.node(node_id, label=label, fillcolor=color)
+	if colorBorders: borderColor = color
+	else: borderColor = "black"
+	if useCircle:
+		dot.node(node_id, label=label, fillcolor=color, width=str(float(odds*5)), height=str(float(odds*5)), fixedSize="true", color=borderColor)
+	else:
+		dot.node(node_id, label=label, fillcolor=color, color=borderColor)
 
 
 def add_edge(dot, from_id, to_id, label=None, color="black"):

@@ -33,8 +33,22 @@ ParserPrint.add_argument('-printc',"-pc",action='store_true',help="'print' will 
 ParserPrint.add_argument('-printr',"-pr",action='store_true',help="'print' will be treated like 'printr'.")
 
 ParserPrint = parser.add_argument_group('Graph generation options')
-ParserPrint.add_argument('-graph',action='store_true',help="Make a graph of the results.")
+ParserPrint.add_argument('-graph','-g',action='store_true',help="Make a graph of the results.")
 # TODO all graph generation options.
+ParserPrint.add_argument('-graphNoLabelNodes','-gnln',action='store_true',help="Don't show node labels")
+ParserPrint.add_argument('-graphNoLabelEdges','-gnle',action='store_true',help="Don't show edge labels")
+ParserPrint.add_argument('-graphNoLabels','-gnl',action='store_true',help="Don't show edge or node labels")
+ParserPrint.add_argument('-graphBrightRed','-gbr',action='store_true',help="Use bright red instead of red.")
+ParserPrint.add_argument('-graphBrightGreen','-gbg',action='store_true',help="Use bright green instead of green.")
+ParserPrint.add_argument('-graphBrightBlue','-gbb',action='store_true',help="Use bright blue instead of blue.")
+ParserPrint.add_argument('-graphDarkGrey','-gdg',action='store_true',help="Use dark grey instead of grey.")
+ParserPrint.add_argument('-graphVibrant','-gv',action='store_true',help="Shorthand for all the bright/dark colors and colored borders")
+ParserPrint.add_argument('-graphNoSingleton','-gns',action='store_true',help="Eliminate any node with a single parent and single child. (Also hides edge labels.)")
+ParserPrint.add_argument('-graphBubbles','-gb',action='store_true',help="Use circles instead, which are sized based on their odds of occuring.")
+ParserPrint.add_argument('-graphColorEdges','-gce',action='store_true',help="Color each edge the same as the node underneath.")
+ParserPrint.add_argument('-graphColorEdgesDark','-gced',action='store_true',help="Color each edge, using the dark version of the color of the node underneath.")
+ParserPrint.add_argument('-graphColorBorders','-gcb',action='store_true',help="Color the perimeter of each node the same as the rest of the node.")
+ParserPrint.add_argument('-graphNoProgress','-gnp',action='store_true',help="Don't show the progress of making the graph.")
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
@@ -666,4 +680,17 @@ else:
 
 
 if args.graph:
-    MD.graph.convert()
+    labelNodes = not args.graphNoLabelNodes and not args.graphNoLabels
+    labelEdges = not args.graphNoLabelEdges and not args.graphNoLabels
+    brightRed = args.graphBrightRed or args.graphVibrant
+    brightGreen = args.graphBrightGreen or args.graphVibrant
+    brightBlue = args.graphBrightBlue or args.graphVibrant
+    darkGrey = args.graphDarkGrey or args.graphVibrant
+    noSingleton = args.graphNoSingleton
+    bubbles = args.graphBubbles
+    colorEdges = args.graphColorEdges or args.graphVibrant
+    colorEdgesDark = args.graphColorEdgesDark
+    colorBorders = args.graphColorBorders or args.graphVibrant
+    noProgress = args.graphNoProgress
+    MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,noProgress)
+
