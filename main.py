@@ -333,6 +333,8 @@ def runCommand(ast,varLookup,data,conts):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
             if valid != 0:
                 newConts += con,md
+            else:
+                for nodeId in md.ids: MD.graph.nodeCancel(nodeId)
         return newConts.discard(ast.discardsInt)
     elif ast.val == "if":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.

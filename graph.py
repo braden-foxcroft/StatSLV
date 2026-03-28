@@ -137,18 +137,26 @@ class Graph:
 		"""Marks a node as pass"""
 		if this.dummy: return
 		node = this[theId]
-		if node.win == -1 or node.win == 0:
-			node.win = 0
 		if node.win == 1 or node.win == None:
 			node.win = 1
+		else:
+			node.win = 0
 	def nodeFail(this,theId):
 		"""Marks a node as fail"""
 		if this.dummy: return
 		node = this[theId]
-		if node.win == 1 or node.win == 0:
-			node.win = 0
 		if node.win == -1 or node.win == None:
 			node.win = -1
+		else:
+			node.win = 0
+	def nodeCancel(this,theId):
+		"""Marks a node as eliminated by bychance"""
+		if this.dummy: return
+		node = this[theId]
+		if node.win == -2 or node.win == None:
+			node.win = -2
+		else:
+			node.win = 0
 	def nodeDone(this,theId):
 		"""Marks a node as done or returned"""
 		if this.dummy: return
@@ -185,18 +193,22 @@ class Graph:
 			this.cleanup(child)
 		willPass = True
 		willFail = True
+		willCancel = True
 		for child in node:
 			if child.win !=  1: willPass = False
 			if child.win != -1: willFail = False
+			if child.win != -2: willCancel = False
 		if willPass:
 			node.win = 1
 		elif willFail:
 			node.win = -1
+		elif willCancel:
+			node.win = -2
 		else:
 			node.win = 0
 		return
 
-	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,removeLinear=False,useCircle=False,colorEdges=False,showPrints=True,file="output"):
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,brightGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorBorders=False,showPrints=True,file="output"):
 		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
 		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
 		if removeLinear:
@@ -210,7 +222,7 @@ class Graph:
 		dot = create_graph(useCircle)
 		for nodeId in this:
 			node = this[nodeId]
-			add_node(dot,node.id,node.label,chooseColor(node.win,brightRed,brightGreen,brightBlue))
+			add_node(dot,node.id,node.label,chooseColor(node.win,brightRed,brightGreen,brightBlue,brightGrey))
 		for nodeId in this:
 			node = this[nodeId]
 			for other in node:
@@ -228,9 +240,12 @@ class Graph:
 		toFile(dot)
 		if showPrints: print("Done.")
 
-def chooseColor(win,brightRed,brightGreen,brightBlue):
-	"""win: -1 or 0 or 1, bright*: bool.
+def chooseColor(win,brightRed,brightGreen,brightBlue,brightGrey):
+	"""win: -2 or -1 or 0 or 1, bright*: bool.
 	Returns a color str"""
+	if win == -2:
+		if brightGrey: return "grey"
+		return "darkgrey"
 	if win == -1:
 		if brightRed: return "red"
 		return "pink"
@@ -240,6 +255,7 @@ def chooseColor(win,brightRed,brightGreen,brightBlue):
 	if win == 1:
 		if brightGreen: return "green"
 		return "lightgreen"
+	raise Exception("chooseColor did not return result!")
 
 
 def create_graph(circle=False):
