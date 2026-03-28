@@ -566,12 +566,14 @@ d = Data()
 c = Contexts()
 c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
 
-def strFrac(res, returnInstead=False):
+def strFrac(res, forceNoColor=False):
     """Returns a Fraction as a colored fraction str."""
     if not isinstance(res,Fraction):
         error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
     if args.intAllowed and res.is_integer():
         return col_int(int(res))
+    if forceNoColor:
+        return str(res.numerator) + "/" + str(res.denominator)
     return col_int(res.numerator) + "/" + col_int(res.denominator)
 
 def floatOrInt(res):
@@ -606,9 +608,13 @@ def showAgg(res):
     keys.sort(key=stringSortKey)
     maxLen = 0
     for key in keys:
-        maxLen = max(maxLen,len(str(key)))
+        maxLen = max(maxLen,len(strFrac(res[key],True)))
     for key in keys:
-        print(f"({str(res[key]).rjust(maxLen)}) {str(key)}")
+        sf = strFrac(res[key],True)
+        sfc = strFrac(res[key],False)
+        if len(sf) < maxLen:
+            sfc = sfc + " " * (maxLen - len(sf))
+        print(f"({sfc}) {str(key)}")
 
     
 
@@ -657,7 +663,7 @@ if d._returns:
     else:
         res = defaultdict(Fraction)
         for key in returns:
-            res[str(key)] += returns[key]
+            res[(key)] += returns[key]
         showAgg(res)
 else:
     if d._done != 0:
