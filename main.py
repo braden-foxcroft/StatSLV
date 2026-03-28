@@ -34,21 +34,20 @@ ParserPrint.add_argument('-printr',"-pr",action='store_true',help="'print' will 
 
 ParserPrint = parser.add_argument_group('Graph generation options')
 ParserPrint.add_argument('-graph','-g',action='store_true',help="Make a graph of the results.")
-# TODO all graph generation options.
 ParserPrint.add_argument('-graphNoLabelNodes','-gnln',action='store_true',help="Don't show node labels")
 ParserPrint.add_argument('-graphNoLabelEdges','-gnle',action='store_true',help="Don't show edge labels")
-ParserPrint.add_argument('-graphNoLabels','-gnl',action='store_true',help="Don't show edge or node labels")
+ParserPrint.add_argument('-graphNoLabels','-gnl',action='store_true',help="Don't show edge or node labels. Speeds up rendering substantially.")
 ParserPrint.add_argument('-graphBrightRed','-gbr',action='store_true',help="Use bright red instead of red.")
 ParserPrint.add_argument('-graphBrightGreen','-gbg',action='store_true',help="Use bright green instead of green.")
 ParserPrint.add_argument('-graphBrightBlue','-gbb',action='store_true',help="Use bright blue instead of blue.")
 ParserPrint.add_argument('-graphDarkGrey','-gdg',action='store_true',help="Use dark grey instead of grey.")
-ParserPrint.add_argument('-graphVibrant','-gv',action='store_true',help="Shorthand for all the bright/dark colors and colored borders")
+ParserPrint.add_argument('-graphVibrant','-gv',action='store_true',help="Shorthand for all the bright/dark colors, colored borders, and colored edges. Speeds up rendering substantially.")
 ParserPrint.add_argument('-graphNoSingleton','-gns',action='store_true',help="Eliminate any node with a single parent and single child. (Also hides edge labels.)")
 ParserPrint.add_argument('-graphBubbles','-gb',action='store_true',help="Use circles instead, which are sized based on their odds of occuring.")
 ParserPrint.add_argument('-graphColorEdges','-gce',action='store_true',help="Color each edge the same as the node underneath.")
 ParserPrint.add_argument('-graphColorEdgesDark','-gced',action='store_true',help="Color each edge, using the dark version of the color of the node underneath.")
 ParserPrint.add_argument('-graphColorBorders','-gcb',action='store_true',help="Color the perimeter of each node the same as the rest of the node.")
-ParserPrint.add_argument('-graphNoProgress','-gnp',action='store_true',help="Don't show the progress of making the graph.")
+ParserPrint.add_argument('-graphNoProgress','-gnp','-gnd',action='store_true',help="Don't show the progress of making the graph.")
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting cases to fail or pass.")
@@ -57,7 +56,7 @@ parserExtraDisp.add_argument('-intAllowed','-i',action='store_true',help="Fracti
 parserExtraDisp.add_argument('-NoColor','-nc',action='store_true',help="Don't include ANSI color codes in printouts.")
 parserExtraDisp.add_argument('-isatty','-tty',action='store_true',help="Assume the input and output are terminals. This may resolve issues with displaying color.")
 parserExtraDisp.add_argument('-noGreyFill','-ng',action='store_true',help="When getting input: if the input has already been obtained, then don't display it in grey.")
-parserExtraDisp.add_argument('-skipInp','-ni',action='store_true',help="When getting input: if the input has already been obtained, then silently use it.")
+parserExtraDisp.add_argument('-skipInp','-ni',action='store_true',help="When getting input: if the input has already been obtained, then don't display the question or answer at all.")
 
 parserDebug = parser.add_argument_group('Debug options')
 parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help="Don't discard variables automatically when they are no longer needed.")
@@ -691,6 +690,6 @@ if args.graph:
     colorEdges = args.graphColorEdges or args.graphVibrant
     colorEdgesDark = args.graphColorEdgesDark
     colorBorders = args.graphColorBorders or args.graphVibrant
-    noProgress = args.graphNoProgress
-    MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,noProgress)
+    showProgress = not args.graphNoProgress
+    MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress)
 

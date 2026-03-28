@@ -11,7 +11,7 @@ def doImports():
 	try:
 		import graphviz
 	except ImportError:
-		error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\n(You will also need to install the graphviz executable, if you haven't done so already)")
+		error("Python package 'graphviz' is not installed. Install it with:\n\tpip install graphviz\nYou will also need to install the graphviz executable:\n\tsudo apt install graphviz\n(If you are using windows, run the 'pip' command and then run this program again for more details.)")
 
 	# Do a dry run to confirm that graphviz works.
 	from graphviz import Digraph
