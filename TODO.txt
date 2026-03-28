@@ -3,3 +3,4 @@
 - Better 'return' handling, with improved command-line flags for control (mean, median, mode) maybe?
 - Documentation and code samples
 - Clean up command-line args. Soo many.
+- Graph problem: 'fail' can mark a node as red even if the node has children. (This is a problem with node.win in general)
