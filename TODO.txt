@@ -1,17 +1,12 @@
 - Implement and maintain proper Sublime Text addon for syntax highlighting.
-- Auto-add 'nop' command before and after blocks, as well as after 'if' and 'for'. It's presence will make sure that discards happen at the right time.
-- Better 'return' handling, with improved command-line flags for control (mean,median,mode) maybe?
+- Auto-add 'nop' command at start and end of blocks, as well as after 'if' and 'for'. Its presence will make sure that discards happen at the right time.
+- Better 'return' handling, with improved command-line flags for control (mean, median, mode) maybe?
 - Documentation and code samples
 - Clean up command-line args. Soo many.
 - Show its work (using graphs, graphviz and DOT)
 	- Add graph node tracking to main.py paths
-	- Add new command: mark (!) which allows you to create new nodes
 	- Add a bunch of command-line args. See graph.Graph.convert for list of info needed.
+	- Flag for borders of nodes to be same as node color
 	- Add 'gray' and 'darkgray' options for paths killed by bychance statements.
 	- Test graph creation
-	- Graphs and variable discards. How will this work?
-	- 'no discard' flag and temporary (~1~) variables: how will _that_ work?
-	- MD object should use sets of ids, not lists.
 	- Graph use circles, where radius is determined by odds of ocurring.
-	- Math errors in labels of edges: see 90heads
-- Ensuring that parent nodes (for graph generation) are handled as dict: parent -> odds

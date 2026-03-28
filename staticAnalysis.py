@@ -64,7 +64,6 @@ def deAliasSelect(ast):
             varList |= newVarList
         else:
             newChildren.append(child)
-    # TODO use varList for discards vars set
     newNode = AST(ast.val,newChildren,"command")
     newNode.discards = varList
     res.append(newNode)

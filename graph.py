@@ -2,6 +2,7 @@
 
 from parser import error
 from fractions import Fraction
+from collections import defaultdict
 
 def doImports():
 	global graphviz
@@ -41,7 +42,7 @@ class Node:
 		this.odds = odds
 		this.win = None
 		this._parents = set()
-		this._children = set()
+		this._children = defaultdict(Fraction)
 
 	def raw(this):
 		"""The raw data"""
@@ -60,6 +61,7 @@ class Node:
 
 	def __iter__(this): return iter(this._children)
 	def __len__(this): return len(this._children)
+	def __getitem__(this,child): return this._children[child]
 
 	def __str__(this): return f"Node '{this.id}'"
 
@@ -80,17 +82,16 @@ class Node:
 			res += other._toString(prevs)
 		return res
 
-
-	def __lt__(this,other):
-		"""Add a link"""
-		other._children.add(this)
-		this._parents.add(other)
-		return other
+	def link(this,other,odds):
+		"""Add a link. Parent.link(child,odds)"""
+		this._children[other] += odds
+		other._parents.add(this)
 
 	def __sub__(this,other):
-		"""Remove a link made with '>'"""
+		"""Remove a link.
+		parent - child"""
 		other._parents.remove(this)
-		this._children.remove(other)
+		del this._children[other]
 		return this
 
 
@@ -126,10 +127,10 @@ class Graph:
 		return n.id
 
 
-	def addEdge(this,sourceId,destId):
+	def addEdge(this,sourceId,destId,odds):
 		"""Adds an edge. Takes str ids"""
 		if this.dummy: return
-		this[sourceId] > this[destId]
+		this[sourceId].link(this[destId],odds)
 
 
 	def nodePass(this,theId):
@@ -156,7 +157,6 @@ class Graph:
 	def removeAllLinear(this):
 		"""Remove any node with 1 parent and 1 child"""
 		if this.dummy: return
-		# TODO check what happens if only 1 node remains.
 		toDel = []
 		for nodeId in this:
 			node = this[nodeId]
@@ -217,7 +217,7 @@ class Graph:
 				label = None
 				color = "black"
 				if labelEdges:
-					labelFrac = Fraction(other.odds / node.odds)
+					labelFrac = node[other]
 					if labelFrac != 1: label = str(labelFrac)
 				if colorEdges:
 					if other.win == 1: color = "green"

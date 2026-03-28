@@ -115,18 +115,42 @@ class MD:
         this.odds = odds
         if isinstance(odds,str): raise Exception("MD took str for odds")
         if nodeIds == None:
-            this.ids = []
+            this.ids = defaultdict(Fraction)
+        elif isinstance(nodeIds,str):
+            this.ids = defaultdict(Fraction)
+            this.ids[nodeIds] = Fraction(1,1)
         else:
             this.ids = nodeIds
 
     def __add__(this,other):
         if MD.hasGraph:
-            return MD(this.odds + other.odds, this.ids + other.ids)
+            newIds = defaultdict(Fraction)
+            for node in this.ids:
+                newIds[node] += this.ids[node]
+            for node in other.ids:
+                newIds[node] += other.ids[node]
+            return MD(this.odds + other.odds, newIds)
+        else:
+            return MD(this.odds + other.odds)
+
+    def __iadd__(this,other):
+        if MD.hasGraph:
+            newIds = this.ids
+            for node in other.ids:
+                newIds[node] += other.ids[node]
+            return MD(this.odds + other.odds, newIds)
         else:
             return MD(this.odds + other.odds)
 
     def __lt__(this,other):
         return (this.odds,this.ids) < (other.odds,other.ids)
+
+    def fracIds(this,chance):
+        """Returns the ids, which each entry multiplied by 'chance'"""
+        res = defaultdict(Fraction)
+        for i in this.ids:
+            res[i] = this.ids[i] * chance
+        return res
 
 
 class Contexts:
@@ -249,11 +273,12 @@ def runCommand(ast,varLookup,data,conts):
                 valid = doEval(cond,con,md.odds)
                 if valid:
                     newCons2.append(con)
-            if len(newCons2) == 0:
+            optCount = len(newCons2)
+            if optCount == 0:
                 error("Error: 'select' statement recieved an empty list of options!\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Save to the final context
-            newOdds = md.odds * Frac(1,len(newCons2))
-            newMd = MD(newOdds,md.ids)
+            newOdds = md.odds * Frac(1,optCount)
+            newMd = MD(newOdds,md.fracIds(Fraction(1,optCount)))
             for con in newCons2:
                 newConts += con,newMd
         return newConts.discard(ast.discardsInt)
@@ -421,8 +446,8 @@ def runCommand(ast,varLookup,data,conts):
             label = str(doEval(ast[0],con,odds))
             newId = MD.graph.newNode(label,odds)
             for oldId in oldIds:
-                MD.graph.addEdge(oldId, newId)
-            newConts += con,MD(odds,[newId])
+                MD.graph.addEdge(oldId, newId, oldIds[oldId])
+            newConts += con,MD(odds,newId)
         return newConts
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
@@ -519,12 +544,12 @@ def doEval(ast,cont,odds):
 
 ast = parse(fileS)
 ast = deAlias(ast)
-ast,varLookup = addMetadata(ast)
+ast,varLookup = addMetadata(ast,nd)
 MD.graph = graph.Graph(not args.graph)
 MD.hasGraph = args.graph
 d = Data()
 c = Contexts()
-c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),["root"])
+c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
 
 def strFrac(res, returnInstead=False):
     """Returns a Fraction as a colored fraction str."""
