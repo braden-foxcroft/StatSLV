@@ -3,6 +3,8 @@
 from parser import error
 from fractions import Fraction
 from collections import defaultdict
+import os
+from contextlib import redirect_stdout, redirect_stderr, contextmanager
 
 def doImports():
 	global graphviz
@@ -28,6 +30,21 @@ def doImports():
 # ----------------------------------------
 # End of imports
 
+@contextmanager
+def SuppressOutput():
+	"""Use 'with SuppressOutput()' to suppress the output"""
+	devnull = os.open(os.devnull, os.O_RDWR)
+	old_stdout = os.dup(1)
+	old_stderr = os.dup(2)
+	try:
+		os.dup2(devnull, 1)
+		os.dup2(devnull, 2)
+		yield
+	finally:
+		os.dup2(old_stdout, 1)
+		os.dup2(old_stderr, 2)
+		os.close(devnull)
+
 
 class Node:
 	"""This class tracks nodes in a graph"""
@@ -41,6 +58,7 @@ class Node:
 		this.label = label
 		this.odds = odds
 		this.win = None
+		this.traversed = False # check if it has been cleaned up already.
 		this._parents = set()
 		this._children = defaultdict(Fraction)
 
@@ -94,6 +112,24 @@ class Node:
 		del this._children[other]
 		return this
 
+	def nodePass(this):
+		if this.win == 1 or this.win == None:
+			this.win = 1
+		else:
+			this.win = 0
+	def nodeFail(this):
+		if this.win == -1 or this.win == None:
+			this.win = -1
+		else:
+			this.win = 0
+	def nodeDone(this):
+		this.win = 0
+	def nodeCancel(this):
+		if this.win == -2 or this.win == None:
+			this.win = -2
+		else:
+			this.win = 0
+
 
 class Graph:
 	"""A full graph. A list of nodes and their configurations."""
@@ -137,30 +173,21 @@ class Graph:
 		"""Marks a node as pass"""
 		if this.dummy: return
 		node = this[theId]
-		if node.win == 1 or node.win == None:
-			node.win = 1
-		else:
-			node.win = 0
+		node.nodePass()
 	def nodeFail(this,theId):
 		"""Marks a node as fail"""
 		if this.dummy: return
 		node = this[theId]
-		if node.win == -1 or node.win == None:
-			node.win = -1
-		else:
-			node.win = 0
+		node.nodeFail()
 	def nodeCancel(this,theId):
 		"""Marks a node as eliminated by bychance"""
 		if this.dummy: return
 		node = this[theId]
-		if node.win == -2 or node.win == None:
-			node.win = -2
-		else:
-			node.win = 0
+		node.nodeCancel()
 	def nodeDone(this,theId):
 		"""Marks a node as done or returned"""
 		if this.dummy: return
-		this[theId].win = 0
+		node.nodeDone()
 	
 	def removeAllLinear(this):
 		"""Remove any node with 1 parent and 1 child"""
@@ -186,9 +213,10 @@ class Graph:
 		if this.dummy: return
 		# Use root if not specified
 		if node == None: node = this.root
-		if node.win != None: return
+		if node.traversed: return
+		node.traversed = True
 		if len(node) == 0:
-			node.win = 0
+			if node.win == None: node.win = 0
 			return
 		for child in node:
 			this.cleanup(child)
@@ -200,16 +228,16 @@ class Graph:
 			if child.win != -1: willFail = False
 			if child.win != -2: willCancel = False
 		if willPass:
-			node.win = 1
+			node.nodePass()
 		elif willFail:
-			node.win = -1
+			node.nodeFail()
 		elif willCancel:
-			node.win = -2
+			node.nodeCancel()
 		else:
-			node.win = 0
+			node.nodeDone()
 		return
 
-	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,darkGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorEdgesDark=False,colorBorders=False,showPrints=True,file="output"):
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,darkGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorEdgesDark=False,colorBorders=False,showPrints=True,showErrors=False,showFile=True,file="output"):
 		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
 		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
 		if removeLinear:
@@ -241,7 +269,10 @@ class Graph:
 				add_edge(dot, node.id, other.id, label, color)
 		if showPrints: print("Done.")
 		if showPrints: print("Graphviz working...",end="",flush=True)
-		toFile(dot)
+		if showErrors:
+			toFile(dot,showFile)
+		else:
+			with SuppressOutput(): toFile(dot,showFile)
 		if showPrints: print("Done.")
 
 def chooseColor(win,brightRed,brightGreen,brightBlue,darkGrey):
@@ -306,7 +337,7 @@ def add_edge(dot, from_id, to_id, label=None, color="black"):
 		dot.edge(from_id, to_id, color=color)
 
 
-def toFile(dot,file="output"):
+def toFile(dot,showFile=True,file="output"):
 	"""Converts the dot object to a file."""
-	dot.render(file, cleanup=True, view=True)
+	dot.render(file, cleanup=True, view=showFile)
 

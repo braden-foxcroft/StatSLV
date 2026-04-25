@@ -47,7 +47,10 @@ ParserPrint.add_argument('-graphBubbles','-gb',action='store_true',help="Use cir
 ParserPrint.add_argument('-graphColorEdges','-gce',action='store_true',help="Color each edge the same as the node underneath.")
 ParserPrint.add_argument('-graphColorEdgesDark','-gced',action='store_true',help="Color each edge, using the dark version of the color of the node underneath.")
 ParserPrint.add_argument('-graphColorBorders','-gcb',action='store_true',help="Color the perimeter of each node the same as the rest of the node.")
-ParserPrint.add_argument('-graphNoProgress','-gnp','-gnd',action='store_true',help="Don't show the progress of making the graph.")
+ParserPrint.add_argument('-graphProgress','-gp','-gd',action='store_true',help="Show the progress of making the graph. Otherwise, the output will be suppressed.")
+ParserPrint.add_argument('-graphShowErrors','-gse',action='store_true',help="Don't suppress output from graphviz and the PDF viewer")
+ParserPrint.add_argument('-graphNoShowFile','-gnf',action='store_true',help="Don't open the PDF viewer when it finishes.")
+
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
 parserExtraDisp.add_argument('-silent','-s',action='store_true',help="Don't warn about converting 'done' cases to 'fail' or 'pass'.")
@@ -696,6 +699,8 @@ if args.graph:
     colorEdges = args.graphColorEdges or args.graphVibrant
     colorEdgesDark = args.graphColorEdgesDark
     colorBorders = args.graphColorBorders or args.graphVibrant
-    showProgress = not args.graphNoProgress
-    MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress)
+    showProgress = args.graphProgress
+    showErrors = args.graphShowErrors
+    showFile = not args.graphNoShowFile
+    MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress,showErrors,showFile)
 
