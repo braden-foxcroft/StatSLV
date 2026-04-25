@@ -66,6 +66,10 @@ def deAliasSelect(ast):
             newChildren.append(child)
     newNode = AST(ast.val,newChildren,"command")
     newNode.discards = varList
+    # if there was de-aliasing of 'select' or 'input',
+    # then the graph should auto-add a node after this line.
+    # It should also do so for 'input' or 'select' calls directly.
+    newNode.markAfter = bool(res) or newNode.val == "select" or newNode.val == "input"
     res.append(newNode)
     return res
 
@@ -175,10 +179,11 @@ def addCommandDefaults(ast):
     ast.varsMade = set()
     ast.discards = ast.discards or set()
     ast.discardsInt = set()
+    if not(hasattr(ast,"markAfter")): ast.markAfter = False
     return
 
 def varUseAndAssign(ast):
-    """Takes an AST, and if its a command, populates the varsUsed and varsMade values"""
+    """Takes an AST, and if it's a command, populates the varsUsed and varsMade values"""
     if ast.nodeType != "command": return
     # varsUsed
     varsUsed = []

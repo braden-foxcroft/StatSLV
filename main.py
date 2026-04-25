@@ -50,6 +50,8 @@ ParserPrint.add_argument('-graphColorBorders','-gcb',action='store_true',help="C
 ParserPrint.add_argument('-graphProgress','-gp','-gd',action='store_true',help="Show the progress of making the graph. Otherwise, the output will be suppressed.")
 ParserPrint.add_argument('-graphShowErrors','-gse',action='store_true',help="Don't suppress output from graphviz and the PDF viewer")
 ParserPrint.add_argument('-graphNoShowFile','-gnf',action='store_true',help="Don't open the PDF viewer when it finishes.")
+ParserPrint.add_argument('-graphAutoMark','-gm',action='store_true',help="Automatically put nodes after each 'select' or 'input'. Automatically enabled if there are no marks.")
+ParserPrint.add_argument('-graphAutoMarkSimple','-gms',action='store_true',help="Same as -graphAutoMark, but it leaves off the variable names from the label.")
 
 
 parserExtraDisp = parser.add_argument_group('Additional display options')
@@ -264,10 +266,23 @@ def stringSortKey(s):
                     except:
                         return len(s),s
 
-def runCommand(ast,varLookup,data,conts):
+def runCommand(ast,varLookup,data,conts,autoMark):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     if ast.nodeType != "command": raise Exception("Tried to run a non-command!: " + ast.val.raw)
+    if autoMark and ast.markAfter:
+        # Run the command without auto-marking
+        res = runCommand(ast,varLookup,data,conts,0)
+        # Auto-mark afterward
+        if autoMark == 1:
+            # The label is "varname:\nvalue"
+            labelLambda = lambda con,odds : ast[0].val.raw + ":\n" + str(doEval(ast[0],con,odds))
+        else: # autoMark == 2
+            # The label is the value of the result of the previous line.
+            # for 'select', 'input', and '=', ast[0] is the var name.
+            labelLambda = lambda con,odds : str(doEval(ast[0],con,odds))
+        res = runMarkCommand(res,labelLambda)
+        return res
     if ast.val == "select":
         newConts = Contexts()
         var = ast[0].varId
@@ -338,7 +353,7 @@ def runCommand(ast,varLookup,data,conts):
                     subConts = subConts.discard(ast.discardsInt)
                 else:
                     subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
-                subConts = runBlock(ast[2],varLookup,data,subConts)
+                subConts = runBlock(ast[2],varLookup,data,subConts,autoMark)
             newConts = newConts + subConts
         return newConts
     elif ast.val == "bychance":
@@ -370,7 +385,7 @@ def runCommand(ast,varLookup,data,conts):
                 newConts = newConts + blocks[block].discard(ast.discardsInt)
                 continue
             subConts = blocks[block].discard(ast.discardsInt)
-            newSubConts = runBlock(block,varLookup,data,subConts)
+            newSubConts = runBlock(block,varLookup,data,subConts,autoMark)
             newConts = newConts + newSubConts
         return newConts
     elif ast.val == "printc" or (ast.val == "print" and args.printc):
@@ -456,28 +471,36 @@ def runCommand(ast,varLookup,data,conts):
                 newConts += setVar(con,ast[0].varId,res),md
         return newConts
     elif ast.val == "!":
-        # Add a new row of nodes for the paths which run this command.
-        newConts = Contexts()
-        for con,md in conts:
-            odds = md.odds
-            oldIds = md.ids
-            label = str(doEval(ast[0],con,odds))
-            newId = MD.graph.newNode(label,odds)
-            for oldId in oldIds:
-                MD.graph.addEdge(oldId, newId, oldIds[oldId])
-            newConts += con,MD(odds,newId)
-        return newConts
+        # LabelLambda is the lambda function to make the label for each new node.
+        labelLambda = lambda con,odds : str(doEval(ast[0],con,odds))
+        return runMarkCommand(conts,labelLambda)
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
     error(f"No return value for runCommand: {orange(ast.val.val)}")
 
 
+def runMarkCommand(conts,labelLambda):
+    """Add a new row of nodes for the paths which run this command.
+    Takes:
+        conts - existing context
+        labelLambda - a lambda function to generate the label. It should take a single context and odds."""
+    newConts = Contexts()
+    for con,md in conts:
+        odds = md.odds
+        oldIds = md.ids
+        label = labelLambda(con,odds)
+        newId = MD.graph.newNode(label,odds)
+        for oldId in oldIds:
+            MD.graph.addEdge(oldId, newId, oldIds[oldId])
+        newConts += con,MD(odds,newId)
+    return newConts
 
-def runBlock(ast,varLookup,data,conts):
+
+def runBlock(ast,varLookup,data,conts,autoMark):
     """Runs an AST block or program. Takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     for command in ast:
-        conts = runCommand(command,varLookup,data,conts)
+        conts = runCommand(command,varLookup,data,conts,autoMark)
     return conts
 
 
@@ -568,6 +591,17 @@ MD.hasGraph = args.graph
 d = Data()
 c = Contexts()
 c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
+if args.graph:
+    if args.graphAutoMarkSimple:
+        autoMark = 2
+    elif args.graphAutoMark:
+        autoMark = 1
+    else:
+        # Automark if there are no marks pre-defined.
+        marks = ast.filter(lambda node: node.nodeType == "command" and node.val == "!")
+        autoMark = int(not marks)
+else:
+    autoMark = int(False)
 
 def strFrac(res, forceNoColor=False):
     """Returns a Fraction as a colored fraction str."""
@@ -642,8 +676,7 @@ def showResult(res):
         printNiceFrac(res.limit_denominator(args.B))
 
 
-
-contRes = runBlock(ast,varLookup,d,c)
+contRes = runBlock(ast,varLookup,d,c,autoMark)
 
 
 if d._returns:

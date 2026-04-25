@@ -3,5 +3,6 @@
 - Test the parser and lexer. Ensure that error messages make sense.
 - Documentation and code samples
 - Clean up command-line args. Soo many.
-- Graph problem: 'fail' can mark a node as red even if the node has children. (This is a problem with node.win in general)
 - Graph auto-generation (adding '!' after each select with same name in AST, or otherwise.)
+- Fix debugAllowNull equation eval: some operators should work, some shouldn't. Make sure the errors work properly.
+- Fix auto-generate nodes: if value is immediatedly discarded, node generation will fail. Consider revising allowNull behavior.
