@@ -69,7 +69,6 @@ parserDebug.add_argument('-DebugStaticAnalysis','-dsa', action="store_true",help
 parserDebug.add_argument('-DebugDiscards','-dd', action="store_true",help="Show a debug of the discards of the program")
 parserDebug.add_argument('-DebugReconstruct','-dr', action="store_true",help="Display the original program, as interpreted by the parser.")
 parserDebug.add_argument('-DebugAST','-da', action="store_true",help="Display the Raw AST")
-parserDebug.add_argument('-DebugAllowNull','-dn', action="store_true",help="If a variable is not given a value, it will have the value 'None'")
 
 args = parser.parse_args()
 #print(args)
@@ -271,18 +270,22 @@ def runCommand(ast,varLookup,data,conts,autoMark):
     Returns a new Contexts, and mutates the data object as needed."""
     if ast.nodeType != "command": raise Exception("Tried to run a non-command!: " + ast.val.raw)
     if autoMark and ast.markAfter:
+        # some commands can't be auto-marked:
+        if ast.val in ["print","printa","printc","printr","for","if","return","bychance"]:
+            return runCommand(ast,varLookup,data,conts,False)
+        # Regular cases: select, input, set (=)
         # Run the command without auto-marking
-        res = runCommand(ast,varLookup,data,conts,0)
+        conts = runCommand(ast,varLookup,data,conts,False)
         # Auto-mark afterward
         if autoMark == 1:
             # The label is "varname:\nvalue"
-            labelLambda = lambda con,odds : ast[0].val.raw + ":\n" + str(doEval(ast[0],con,odds))
+            labelLambda = lambda con,odds : ast[0].val.raw + ":\n" + str(doEval(ast[0],con,odds,True))
         else: # autoMark == 2
             # The label is the value of the result of the previous line.
             # for 'select', 'input', and '=', ast[0] is the var name.
-            labelLambda = lambda con,odds : str(doEval(ast[0],con,odds))
-        res = runMarkCommand(res,labelLambda)
-        return res
+            labelLambda = lambda con,odds : str(doEval(ast[0],con,odds,True))
+        conts = runMarkCommand(conts,labelLambda)
+        return conts
     if ast.val == "select":
         newConts = Contexts()
         var = ast[0].varId
@@ -291,7 +294,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         # For each context, apply the select.
         for con,md in conts:
             # Determine the options for the select
-            vals = doEval(expr,con,md.odds)
+            vals = doEval(expr,con,md.odds,False)
             if not isinstance(vals,tuple):
                 error("Error: 'select' statement expression returned non-list.\n"+ast.val.line+"\nError at: "+str(ast.val))
             # Generate the new contexts
@@ -301,7 +304,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
             # Filter by validity
             newCons2 = []
             for con in newCons:
-                valid = doEval(cond,con,md.odds)
+                valid = doEval(cond,con,md.odds,False)
                 if valid:
                     newCons2.append(con)
             optCount = len(newCons2)
@@ -332,7 +335,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         return Contexts()
     elif ast.val == "return":
         for con,md in conts:
-            res = doEval(ast[0],con,md.odds)
+            res = doEval(ast[0],con,md.odds,True)
             data.doReturn(res,md.odds)
             for nodeId in md.ids: MD.graph.nodeDone(nodeId)
         return Contexts()
@@ -340,7 +343,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,md in conts:
             # Find range
-            rng = doEval(ast[1],con,md.odds)
+            rng = doEval(ast[1],con,md.odds,False)
             if not isinstance(rng,tuple):
                 error("'for' loop expr did not return list:\n"+var.val.line)
             blocks[rng] += con,md
@@ -359,7 +362,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
     elif ast.val == "bychance":
         newConts = Contexts()
         for con,md in conts:
-            valid = doEval(ast[0],con,md.odds)
+            valid = doEval(ast[0],con,md.odds,False)
             if not isinstance(valid,int):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
             if valid != 0:
@@ -373,7 +376,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
             i = iter(ast)
             for expr in i:
                 block = next(i)
-                valid = doEval(expr,con,md.odds)
+                valid = doEval(expr,con,md.odds,False)
                 if valid:
                     blocks[block] += con,md
                     break
@@ -392,7 +395,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         # Print each item, tracking count.
         toPrint = []
         for con,md in conts:
-            toPrint.append(str(doEval(ast[0],con,md.odds)))
+            toPrint.append(str(doEval(ast[0],con,md.odds,True)))
         toPrintAgg = defaultdict(int)
         maxLen = 0
         for val in toPrint:
@@ -416,7 +419,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         toPrint = defaultdict(Fraction)
         totalOdds = Fraction(0)
         for con,md in conts:
-            toPrint[str(doEval(ast[0],con,md.odds))] += md.odds
+            toPrint[str(doEval(ast[0],con,md.odds,True))] += md.odds
             totalOdds += md.odds
         keys = sorted(toPrint,key=stringSortKey)
         if keys == [""]:
@@ -435,7 +438,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         # Print each item, tracking the absolute probability of the print occurring at this moment in time.
         toPrint = defaultdict(Fraction)
         for con,md in conts:
-            toPrint[str(doEval(ast[0],con,md.odds))] += md.odds
+            toPrint[str(doEval(ast[0],con,md.odds,True))] += md.odds
         keys = sorted(toPrint,key=stringSortKey)
         if keys == [""]:
             print()
@@ -452,7 +455,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
     elif ast.val == "set":
         newConts = Contexts()
         for con,md in conts:
-            res = doEval(ast[2],con,md.odds)
+            res = doEval(ast[2],con,md.odds,True)
             con = setVar(con,ast[0].varId,res)
             newConts += con,md
         return newConts.discard(ast.discardsInt)
@@ -461,7 +464,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         inpCountId = varLookup["~inpCount~"]
         allDisps = defaultdict(list)
         for con,md in conts:
-            toDisp = doEval(ast[1],con,md.odds)
+            toDisp = doEval(ast[1],con,md.odds,True)
             inpCount = con[inpCountId]
             allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),md))
         keys = sorted(allDisps)
@@ -472,7 +475,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         return newConts
     elif ast.val == "!":
         # LabelLambda is the lambda function to make the label for each new node.
-        labelLambda = lambda con,odds : str(doEval(ast[0],con,odds))
+        labelLambda = lambda con,odds : str(doEval(ast[0],con,odds,True))
         return runMarkCommand(conts,labelLambda)
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
@@ -504,26 +507,45 @@ def runBlock(ast,varLookup,data,conts,autoMark):
     return conts
 
 
-def doEval(ast,cont,odds):
-    """Takes an expression and a variable context, and evaluates the expression using the context for variable values.
+def doEval(ast,cont,odds,allowNull):
+    """Takes:
+        an expression AST,
+        a variable context,
+        whether the result may be None
+    evaluates the expression using the context for variable values.
     Returns the expression result."""
     # TODO type validation, list operations.
     if ast.nodeType == "expr":
-        res = doEval(ast[0],cont,odds)
-        if res == None and not args.DebugAllowNull:
-            error(f"expr could not solve. Missing var?\n"+ast[0].val.line)
+        res = doEval(ast[0],cont,odds,allowNull)
         return res
     if ast.nodeType == "opB":
         if ast.val == "or":
-            res = doEval(ast[0],cont,odds)
+            res = doEval(ast[0],cont,odds,allowNull)
             if res: return res
-            return doEval(ast[1],cont,odds)
+            return doEval(ast[1],cont,odds,allowNull)
         if ast.val == "and":
-            res = doEval(ast[0],cont,odds)
+            res = doEval(ast[0],cont,odds,allowNull)
             if not res: return res
-            return doEval(ast[1],cont,odds)
-        r1 = doEval(ast[0],cont,odds)
-        r2 = doEval(ast[1],cont,odds)
+            return doEval(ast[1],cont,odds,allowNull)
+        if ast.val in ["==","!="]:
+            r1 = doEval(ast[0],cont,odds,True)
+            r2 = doEval(ast[1],cont,odds,True)
+            if ast.val == "==": return int(r1 == r2)
+            if ast.val == "!=": return int(r1 != r2)
+        if ast.val == ",":
+            r1 = doEval(ast[0],cont,odds,True)
+            r2 = doEval(ast[1],cont,odds,True)
+            if not isinstance(r1,tuple): r1 = (r1,)
+            if not isinstance(r2,tuple): r2 = (r2,)
+            return r1 + r2
+        if ast.val == "in":
+            r1 = doEval(ast[0],cont,odds,True)
+            r2 = doEval(ast[1],cont,odds,False)
+            if not isinstance(r2,tuple):
+                error(f"'in' operator recieved non-list input on right:\n"+ast.val.line)
+            return int(r1 in r2)
+        r1 = doEval(ast[0],cont,odds,False)
+        r2 = doEval(ast[1],cont,odds,False)
         if ast.val == "+":
             if isinstance(r1,str) or isinstance(r2,str):
                 r1,r2 = str(r1),str(r2)
@@ -533,26 +555,16 @@ def doEval(ast,cont,odds):
         if ast.val == "//": return r1 // r2
         if ast.val == "/": return Frac(r1,r2)
         if ast.val == "%": return r1 % r2
-        if ast.val == ",":
-            if not isinstance(r1,tuple): r1 = (r1,)
-            if not isinstance(r2,tuple): r2 = (r2,)
-            return r1 + r2
         if ast.val == "to":
             if not isinstance(r1,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             if not isinstance(r2,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             return tuple(range(r1,r2+1))
-        if ast.val == "==": return int(r1 == r2)
-        if ast.val == "!=": return int(r1 != r2)
         if ast.val == "<=": return int(r1 <= r2)
         if ast.val == ">=": return int(r1 >= r2)
         if ast.val == "<": return int(r1 < r2)
         if ast.val == ">": return int(r1 > r2)
-        if ast.val == "in":
-            if not isinstance(r2,tuple):
-                error(f"'in' operator recieved non-list input on right:\n"+ast.val.line)
-            return int(r1 in r2)
         if ast.val == ".":
             if not isinstance(r1,Frac) and not isinstance(r1,int):
                 error(f"'.' operator recieved non-numeric input on left:\n"+ast.val.line)
@@ -560,10 +572,10 @@ def doEval(ast,cont,odds):
                 error(f"'.' operator recieved non-int input on right:\n"+ast.val.line)
             return str(round(float(r1),r2))
     if ast.nodeType == "opU":
-        if ast.val == "-": return -doEval(ast[0],cont,odds)
-        if ast.val == "not": return int(not doEval(ast[0],cont,odds))
+        if ast.val == "-": return -doEval(ast[0],cont,odds,False)
+        if ast.val == "not": return int(not doEval(ast[0],cont,odds,True))
         if ast.val == "sorted":
-            r1 = doEval(ast[0],cont,odds)
+            r1 = doEval(ast[0],cont,odds,False)
             if not isinstance(r1,tuple):
                 error(f"'sorted' function recieved non-tuple input:\n"+ast.val.line)
             return tuple(sorted(r1))
@@ -574,8 +586,8 @@ def doEval(ast,cont,odds):
             res = None
         else:
             res = cont[ast.varId]
-        if res == None and not args.DebugAllowNull:
-            error(f"var \"{str(ast.val.raw)}\" did not have a value:\n{ast.val.line}")
+        if res == None and not allowNull:
+            error(f"var \"{str(ast.val.raw)}\" needed a value but was 'None' instead:\n{ast.val.line}")
         return res
     if ast.nodeType == "int": return ast.val.val
     if ast.nodeType == "str": return ast.val.val
@@ -678,12 +690,12 @@ def showResult(res):
 
 contRes = runBlock(ast,varLookup,d,c,autoMark)
 
-
-if d._returns:
+if list(d._returns) == [""]:
+    pass # TODO document.
+elif d._returns:
     if d._done or d._pass or d._fail:
         error("If 'return' is present, pass/fail/done cannot be used!\n(If you want a path to finish without returning, use 'bychance 0' instead.)")
     returns = d._returns
-    if list(returns) == [""]: exit(0) # TODO document.
     allNums = True
     for r in returns:
         if not isinstance(r,int) and not isinstance(r,Fraction):
@@ -712,12 +724,11 @@ else:
         elif d._fail and d._pass:
             error(f"The code mixes the use of {green('pass')}, {red('fail')}, and {yellow('done')}.\n({yellow('done')} is insterted automatically after the final line of the code, to catch any cases where the code doesn't {green('pass')} or {red('fail')} first.)\nPlease make sure that your code always finishes with a {green('pass')} or {red('fail')}!")
     if d._pass + d._fail == 0:
-        if args.silent:
-            exit(1)
-        else:
-            error("No result.")
-    res = Frac(d._pass,d._pass+d._fail)
-    showResult(res)
+        if not args.silent:
+            print(green('No result.'))
+    else:
+        res = Frac(d._pass,d._pass+d._fail)
+        showResult(res)
 
 
 if args.graph:

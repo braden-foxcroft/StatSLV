@@ -1,8 +1,7 @@
 - Implement and maintain proper Sublime Text addon for syntax highlighting.
 - Auto-add 'nop' command at start and end of blocks, as well as after 'if' and 'for'. Its presence will make sure that discards happen at the right time.
 - Test the parser and lexer. Ensure that error messages make sense.
+- the 'expected =' error triggers on command misspelling.
 - Documentation and code samples
 - Clean up command-line args. Soo many.
-- Graph auto-generation (adding '!' after each select with same name in AST, or otherwise.)
-- Fix debugAllowNull equation eval: some operators should work, some shouldn't. Make sure the errors work properly.
-- Fix auto-generate nodes: if value is immediatedly discarded, node generation will fail. Consider revising allowNull behavior.
+- TODO 'None' should be an alias for '_'. Adapt the static analysis and int conversion accordingly

@@ -236,7 +236,7 @@ def lex(fileStr):
         # The various token possibilities
         if char in ["$",".",",",")",":"]:
             res.append(Token(char,char.pos,char.line))
-        elif str(char) in {"+","-","*","!","<",">","="}:
+        elif str(char) in {"+","-","*","!","<",">","=","%"}:
             # All tokens which are either 't' or 't='.
             if s.peek == "=": res.append(Token(char + s.pop(), char.pos,char.line))
             else: res.append(Token(char,char.pos,char.line))

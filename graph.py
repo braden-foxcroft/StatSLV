@@ -187,6 +187,7 @@ class Graph:
 	def nodeDone(this,theId):
 		"""Marks a node as done or returned"""
 		if this.dummy: return
+		node = this[theId]
 		node.nodeDone()
 	
 	def removeAllLinear(this):
