@@ -5,4 +5,5 @@
 - Documentation and code samples
 - Clean up command-line args. Soo many.
 - TODO 'None' should be an alias for '_'. Adapt the static analysis and int conversion accordingly
-- the -dr shouldn't show the 'done', since we may want to pipe it back to the file
+- The vibrant blue makes the text hard to read. Use white text on bright blue.
+- Maybe make vibrant the default? Then have options to use faded versions of the colors instead.
