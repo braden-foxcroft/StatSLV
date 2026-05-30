@@ -1,4 +1,7 @@
-- Syntax highlighting plugins
+- Update syntax highlighting plugins
 - Test the parser and lexer. Ensure that error messages make sense.
+- Check for TODOs inside files
 - Documentation and code samples
 - Clean up command-line args. Soo many.
+- Special case: 'expr' eval will end if it sees a '='. This should be an error for putting an '=' in the wrong place
+
