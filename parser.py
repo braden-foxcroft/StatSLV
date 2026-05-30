@@ -597,6 +597,10 @@ def parseCommand(s):
         return AST(com,res,"command")
     # Default case is var assignOp expr
     var = parseVar(s," or command")
+    if s.peek != "=":
+        if s.peek == "==":
+            error(red("Error:") + f"'{var.val.raw} ==' should probably be '{var.val.raw} ='\nLocation: {s.peek}")
+        error(red("Error:") + f" '{var}' is not a command. (You may be missing an '=' sign)\nLocation: {s.peek}")
     op = getAssignOp(s)
     expr = parseExpr(s)
     return AST(Token("set",var.pos,var.val.line),[var,AST(op,[],"opB"),expr],"command")

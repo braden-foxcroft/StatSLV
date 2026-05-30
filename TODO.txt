@@ -1,8 +1,5 @@
 - Syntax highlighting
 - Test the parser and lexer. Ensure that error messages make sense.
-- the 'expected =' error triggers on command misspelling.
 - Documentation and code samples
 - Clean up command-line args. Soo many.
-- TODO 'None' should be an alias for '_'. Adapt the static analysis and int conversion accordingly
 - The vibrant blue makes the text hard to read. Use white text on bright blue.
-- Ensure that 'if' execution order is done in line with code order
