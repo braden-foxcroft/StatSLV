@@ -383,7 +383,12 @@ def runCommand(ast,varLookup,data,conts,autoMark):
             else:
                 blocks[None] += con,md
         newConts = Contexts()
-        for block in blocks:
+        blocksOrdered = [None]
+        i = iter(ast)
+        for expr in i:
+            blocksOrdered.append(next(i))
+        for block in blocksOrdered:
+            if block not in blocks: continue
             if block == None:
                 newConts = newConts + blocks[block].discard(ast.discardsInt)
                 continue

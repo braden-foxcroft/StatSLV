@@ -6,5 +6,3 @@
 - TODO 'None' should be an alias for '_'. Adapt the static analysis and int conversion accordingly
 - The vibrant blue makes the text hard to read. Use white text on bright blue.
 - Ensure that 'if' execution order is done in line with code order
-- Better error for 'else if' => 'elif'
-- print("val") should work
