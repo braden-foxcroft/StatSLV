@@ -454,6 +454,8 @@ def runCommand(ast,varLookup,data,conts,autoMark):
         return conts.discard(ast.discardsInt)
     elif ast.val == "set":
         newConts = Contexts()
+        if ast[0].val == "$":
+            error(red("Error:") + " Cannot assign value to '$' variable.")
         for con,md in conts:
             res = doEval(ast[2],con,md.odds,True)
             con = setVar(con,ast[0].varId,res)
@@ -690,7 +692,7 @@ def showResult(res):
 
 contRes = runBlock(ast,varLookup,d,c,autoMark)
 
-if list(d._returns) == [""]:
+if list(d._returns) == [""] or list(d._returns) == [None]:
     pass # TODO document.
 elif d._returns:
     if d._done or d._pass or d._fail:

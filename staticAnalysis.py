@@ -115,7 +115,7 @@ def findVarNames(ast):
     """Takes an ast, returns a sorted non-repeating list of var names."""
     varList = ast.filter(lambda node : node.nodeType == "var")
     varSet = set([var.val.raw for var in varList])
-    varSet = (varSet - {"_"}) | {"~inpCount~","$"}
+    varSet = (varSet - {"_","None"}) | {"~inpCount~","$"}
     return sorted(varSet)
     
 class VarMapping:
@@ -158,7 +158,7 @@ def tagVars(m):
     Takes a mapping, returns a function which modifies and AST"""
     def mapVals(ast):
         if ast.nodeType != "var": return
-        if ast.val.raw == "_":
+        if ast.val.raw in ["_","None"]:
             ast.varId = None
         elif ast.val.raw == "$":
             ast.varId = None
@@ -207,7 +207,7 @@ def varUseAndAssign(ast):
     elif ast.val == "select":
         varsMade.append(ast[0].val.raw)
     ast.varsMade = set(varsMade)
-    ast.varsMade = ast.varsMade - {"$","_"}
+    ast.varsMade = ast.varsMade - {"$","_","None"}
     return
 
 

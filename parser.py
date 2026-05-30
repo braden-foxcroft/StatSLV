@@ -96,7 +96,7 @@ class Token:
     
     # A set of keyword and operator literals. An item may appear in both. Items in either will not be considered variable names.
     operators = {"+", "-", "*", "//", "to", ",", "!", "==", "!=", "<=", ">=", "<", ">", "or", "and", "not", "select", "input", "sorted", "=", "(",")","."}
-    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "printa", "printc", "printr", "nop", "input", "sorted", "{", "}", "\n","()","$","_","!"}
+    keywords = {"select", "from", "where", "for", "in", "if", "else", "elif", "bychance", "print", "printa", "printc", "printr", "nop", "input", "sorted", "{", "}", "\n","()","$","_","None","!"}
     # Determines if repr(Token(...)) should reconstruct the object or just provide a simple rep.
     # Can change Token.fullRep to change all display settings, or this.fullRep to change this one only.
     fullRep = False
@@ -278,7 +278,7 @@ def lex(fileStr):
             while isDigit(s.peek): num += s.pop()
             res.append(Token(num,char.pos,char.line,int(num)))
             if s.peek == ".":
-                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {col_int(2)} / {col_int(3)}). The 'A . B' notation is a binary operator meaning \"convert A to a float, then round to B decimal places. Finally, convert the result to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {col_str(s.peek.charAtPos())}")
+                error(f"{red('This language does not support floating point numbers.')}\nConsider using fractions instead (for example {col_int(2)}/{col_int(3)}).\nThe 'A . B' notation is a binary operator meaning \"convert A to a float, round to B decimal places, then convert to a string.\"\nTo prevent this warning, put a space between the int literal and dot.\n{red('Error occured when parsing')} {col_str(s.peek.charAtPos())}")
         elif char == "\"":
             # str literal
             raw = "\""
@@ -539,7 +539,10 @@ def parseCommand(s):
         com = s.pop()
         # Take a single expr argument (otherwise an empty string.)
         if s.peek == "\n":
-            expr = AST(Token("expr",com.pos),[AST(Token("\"\"",com.pos,val=""),[],"str")],"expr")
+            if com == "return":
+                expr = AST(Token("expr",com.pos),[AST(Token("None",com.pos,val="None"),[],"var")],"expr")
+            else:
+                expr = AST(Token("expr",com.pos),[AST(Token("\"\"",com.pos,val=""),[],"str")],"expr")
         else:
             expr = parseExpr(s)
         expect(s,"\n")
@@ -610,7 +613,7 @@ def expect(s,expected):
 
 def parseVar(s,orWhat=""):
     """Returns a var node"""
-    if s.peek.isKeyword and (s.peek in ["$","_"]):
+    if s.peek.isKeyword and (s.peek in ["$","_","None"]):
         return AST(s.pop(),[],"var")
     if not s.peek.isVar:
         error(f"Expected varname{orWhat}, got {s.peek}")
@@ -721,14 +724,14 @@ def parseExpr8(s):
     
 
 def parseExpr9(s):
-    """expr9 = int | var | "$"" | "_" | string | "(" expr1 ")" """
+    """expr9 = int | var | "$"" | "_" | "None" | string | "(" expr1 ")" """
     if s.peek.isVar:
         return AST(s.pop(),[],"var")
     if s.peek.isInt:
         return AST(s.pop(),[],"int")
     if s.peek.isStr:
         return AST(s.pop(),[],"str")
-    if s.peek.isKeyword and (s.peek in ["$","_"]):
+    if s.peek.isKeyword and (s.peek in ["$","_","None"]):
         return AST(s.pop(),[],"var")
     if s.peek == "()":
         return AST(s.pop(),[],"list")
