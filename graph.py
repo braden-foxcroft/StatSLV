@@ -318,10 +318,13 @@ def add_node(dot, node_id, label=None, color="lightgray", odds=1, useCircle=Fals
 	if label == None: label = node_id
 	if colorBorders: borderColor = color
 	else: borderColor = "black"
+	if color == "blue": fontcolor = "white"
+	else: fontcolor = "black"
+
 	if useCircle:
-		dot.node(node_id, label=label, fillcolor=color, width=str(float(odds*5)), height=str(float(odds*5)), fixedSize="true", color=borderColor)
+		dot.node(node_id, label=label, fillcolor=color, width=str(float(odds*5)), height=str(float(odds*5)), fixedSize="true", color=borderColor, fontcolor=fontcolor)
 	else:
-		dot.node(node_id, label=label, fillcolor=color, color=borderColor)
+		dot.node(node_id, label=label, fillcolor=color, color=borderColor, fontcolor=fontcolor)
 
 
 def add_edge(dot, from_id, to_id, label=None, color="black"):

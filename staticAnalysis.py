@@ -45,7 +45,8 @@ def testExample(exampleStr,noDiscards=False):
 def deAlias(ast):
     """A function which removes aliases from an AST.
     At the moment, only affects 'select' and 'input' function/unary operator calls."""
-    return ast.modify(deAliasSelect).modify(addNops)
+    return ast.modify(addNops).modify(deAliasSelect)
+    # Note: .modify(deAliasSelect) must be the end of the list, since it adds metadata, and .modify re-makes the nodes (destroying the metadata)
 
 def addNops(ast):
     """Takes an command AST node. Returns a list of command AST nodes, where any in-line 'select' calls are split onto previous lines."""
