@@ -1,5 +1,4 @@
-- Syntax highlighting
+- Syntax highlighting plugins
 - Test the parser and lexer. Ensure that error messages make sense.
 - Documentation and code samples
 - Clean up command-line args. Soo many.
-- The vibrant blue makes the text hard to read. Use white text on bright blue.

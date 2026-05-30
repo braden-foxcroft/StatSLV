@@ -603,6 +603,7 @@ def parseCommand(s):
         error(red("Error:") + f" '{var}' is not a command. (You may be missing an '=' sign)\nLocation: {s.peek}")
     op = getAssignOp(s)
     expr = parseExpr(s)
+    expect(s,"\n")
     return AST(Token("set",var.pos,var.val.line),[var,AST(op,[],"opB"),expr],"command")
 
 
