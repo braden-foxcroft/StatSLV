@@ -599,7 +599,7 @@ def parseCommand(s):
     var = parseVar(s," or command")
     if s.peek != "=":
         if s.peek == "==":
-            error(red("Error:") + f"'{var.val.raw} ==' should probably be '{var.val.raw} ='\nLocation: {s.peek}")
+            error(red("Error:") + f"'{var.val.raw} {red('==')}' should probably be '{var.val.raw} {green('=')}'\nLocation: {s.peek}")
         error(red("Error:") + f" '{var}' is not a command. (You may be missing an '=' sign)\nLocation: {s.peek}")
     op = getAssignOp(s)
     expr = parseExpr(s)
