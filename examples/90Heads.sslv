@@ -1,8 +1,10 @@
 
 sum = 0
 for i from 1 to 100
-	select toss from 0 to 1
-	sum = sum + toss
+	sum = sum + select(0,1)
+
+
+
 
 if sum >= 90
 	pass

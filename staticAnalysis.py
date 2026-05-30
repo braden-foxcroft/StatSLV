@@ -3,7 +3,7 @@
 """
 Important methods:
 setColor(bool) determines if the module uses color for console prints.
-deAlias(ast) returns an AST without inline 'select' or 'input' statements.
+deAlias(ast) returns an AST without inline 'select' or 'input' statements. It adds 'nop' commands after code blocks.
 addMetadata(ast,noDiscards) modifies the AST by adding 'discard' attributes to commands,
     'varId' attributes to 'var' objects, and the 'varCount' attribute to the program root.
 """
@@ -45,7 +45,13 @@ def testExample(exampleStr,noDiscards=False):
 def deAlias(ast):
     """A function which removes aliases from an AST.
     At the moment, only affects 'select' and 'input' function/unary operator calls."""
-    return ast.modify(deAliasSelect)
+    return ast.modify(deAliasSelect).modify(addNops)
+
+def addNops(ast):
+    """Takes an command AST node. Returns a list of command AST nodes, where any in-line 'select' calls are split onto previous lines."""
+    if ast.val == "if" or ast.val == "for":
+        return [ast,AST(Token("nop",ast.val.pos,"Compiler-generated line"),[],"command")]
+    return [ast]
 
 def deAliasSelect(ast):
     """Takes an command AST node. Returns a list of command AST nodes, where any in-line 'select' calls are split onto previous lines."""

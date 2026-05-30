@@ -1,9 +1,9 @@
-- Implement and maintain proper Sublime Text addon for syntax highlighting.
-- Auto-add 'nop' command at start and end of blocks, as well as after 'if' and 'for'. Its presence will make sure that discards happen at the right time.
+- Syntax highlighting
 - Test the parser and lexer. Ensure that error messages make sense.
 - the 'expected =' error triggers on command misspelling.
 - Documentation and code samples
 - Clean up command-line args. Soo many.
 - TODO 'None' should be an alias for '_'. Adapt the static analysis and int conversion accordingly
 - The vibrant blue makes the text hard to read. Use white text on bright blue.
-- Maybe make vibrant the default? Then have options to use faded versions of the colors instead.
+- Ensure that 'if' execution order is done in line with code order
+- Better error for 'else if' => 'elif'
