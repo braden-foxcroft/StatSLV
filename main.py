@@ -62,7 +62,7 @@ ParserPrint.add_argument('-printc',"-pc",action='store_true',help=showArg("'prin
 ParserPrint.add_argument('-printr',"-pr",action='store_true',help=showArg("'print' will be treated like 'printr'. (show relative probability for print to occur.)",argsIO))
 
 ParserGraph = parser.add_argument_group('Graph options')
-ParserGraph.add_argument('-graph','-g',action='store_true',help=showArg("Make a graph of the results.",argsCommon or argsGraph))
+ParserGraph.add_argument('-graph','-g',action='store_true',help=showArg("Make a graph of the results. Uses graphviz graph-to-pdf converter",argsCommon or argsGraph))
 ParserGraph.add_argument('-graphNoSingleton','-gns',action='store_true',help=showArg("Eliminate any node with a single parent and single child. (Also hides edge labels.)",argsGraph))
 ParserGraph.add_argument('-graphBubbles','-gb',action='store_true',help=showArg("Use circles instead, which are sized based on their odds of occuring.",argsGraph))
 ParserGraph.add_argument('-graphNoShowFile','-gnf',action='store_true',help=showArg("Don't open the PDF viewer when it finishes.",argsGraph))
