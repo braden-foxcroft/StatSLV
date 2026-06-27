@@ -84,4 +84,7 @@ expr9 = int | var | "$"" | "_" | string | "(" expr1 ")" | "(" expr1 "," ")" | "(
 Semantics:
 	
 
+Types: str, int, tuple, Fraction, None
+
+
 # TODO

@@ -11,7 +11,7 @@ class Color:
     
     def __call__(this,toConv):
         if not Color.doColor: return str(toConv)
-        return f"\033[{this.code}m" + str(toConv) + "\033[0m"
+        return f"\033[{this.code}m" + str(toConv).replace("\033[0m",f"\033[{this.code}m") + "\033[0m"
 
 
 red = Color("1;31")

@@ -513,6 +513,50 @@ def runBlock(ast,varLookup,data,conts,autoMark):
         conts = runCommand(command,varLookup,data,conts,autoMark)
     return conts
 
+class TypeChecker:
+    """A context manager which catches type errors from expressions and shows a nicer error instead"""
+
+    def __init__(this,firstVal,op,secondVal):
+        """Takes a value, a str operator, and another value. Used in the error message."""
+        this.firstVal = firstVal
+        this.op = op
+        this.secondVal = secondVal
+
+
+    def __enter__(this):
+        return this
+    def __exit__(this,a,b,c):
+        if a == None: return
+        if a != TypeError: return
+        error(red("Error") + f": unsupported types for operation:\n\t{shortRepr(this.firstVal)} {this.op} {shortRepr(this.secondVal)}:\n{str(b).replace("tuple","list")}")
+        return True # Does not run
+
+def shortRepr(val):
+    if isinstance(val, int): return col_int(str(val))
+    if isinstance(val,Fraction): return col_int("approximately " + str(float(val)))
+    if isinstance(val,tuple):
+        end = "]"
+        if len(val) > 5:
+            val = val[:5]
+            end = ", " + grey("...") + "]"
+        # TODO
+        res = "["
+        for v in val:
+            r = shortRepr(v)
+            res += r + ", "
+        if len(val): res = res[:-2]
+        res = res + end
+        return res
+    if isinstance(val,str):
+        if len(val) > 18:
+            return col_str("\"" + val[:18] + grey("...") + "\"")
+        return col_str("\"" + val + "\"")
+    if val == None:
+        return col_keyword("None")
+    error(f"shortRepr(...) recieved unexpected type: {type(val)}")
+
+
+
 def doEval(ast,cont,odds,allowNull):
     """Takes:
         an expression AST,
@@ -520,7 +564,6 @@ def doEval(ast,cont,odds,allowNull):
         whether the result may be None
     evaluates the expression using the context for variable values.
     Returns the expression result."""
-    # TODO type validation, list operations.
     if ast.nodeType == "expr":
         res = doEval(ast[0],cont,odds,allowNull)
         return res
@@ -559,26 +602,34 @@ def doEval(ast,cont,odds,allowNull):
                 r2 = (r2,)
             elif isinstance(r2,tuple) and not isinstance(r1,tuple):
                 r1 = (r1,)
-            return r1 + r2
+            with TypeChecker(r1,"+",r2): return r1 + r2
         if ast.val == "-":
             if isinstance(r1,tuple):
                 if not isinstance(r2,tuple): r2 = (r2,)
                 return listSub(r1,r2)
-            return r1 - r2
-        if ast.val == "*": return r1 * r2
-        if ast.val == "//": return r1 // r2
-        if ast.val == "/": return Frac(r1,r2)
-        if ast.val == "%": return r1 % r2
+            with TypeChecker(r1,"-",r2): return r1 - r2
+        if ast.val == "*":
+            with TypeChecker(r1,"*",r2): return r1 * r2
+        if ast.val == "//":
+            with TypeChecker(r1,"//",r2): return r1 // r2
+        if ast.val == "/":
+            with TypeChecker(r1,"/",r2): return Frac(r1,r2)
+        if ast.val == "%":
+            with TypeChecker(r1,"%",r2): return r1 % r2
         if ast.val == "to":
             if not isinstance(r1,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             if not isinstance(r2,int):
                 error(f"'to' operator recieved non-int input:\n"+ast.val.line)
             return tuple(range(r1,r2+1))
-        if ast.val == "<=": return int(r1 <= r2)
-        if ast.val == ">=": return int(r1 >= r2)
-        if ast.val == "<": return int(r1 < r2)
-        if ast.val == ">": return int(r1 > r2)
+        if ast.val == "<=":
+            with TypeChecker(r1,"<=",r2): return int(r1 <= r2)
+        if ast.val == ">=":
+            with TypeChecker(r1,">=",r2): return int(r1 >= r2)
+        if ast.val == "<":
+            with TypeChecker(r1,"<",r2): return int(r1 < r2)
+        if ast.val == ">":
+            with TypeChecker(r1,">",r2): return int(r1 > r2)
         if ast.val == ".":
             if not isinstance(r1,Frac) and not isinstance(r1,int):
                 error(f"'.' operator recieved non-numeric input on left:\n"+ast.val.line)
@@ -586,12 +637,16 @@ def doEval(ast,cont,odds,allowNull):
                 error(f"'.' operator recieved non-int input on right:\n"+ast.val.line)
             return str(round(float(r1),r2))
     if ast.nodeType == "opU":
-        if ast.val == "-": return -doEval(ast[0],cont,odds,False)
+        if ast.val == "-":
+            res = doEval(ast[0],cont,odds,False)
+            if not isNumber(res):
+                error(red("Error") + f": Cannot apply '-' to non-number: {shortRepr(res)}")
+            return -res
         if ast.val == "not": return int(not doEval(ast[0],cont,odds,True))
         if ast.val == "sorted":
             r1 = doEval(ast[0],cont,odds,False)
             if not isinstance(r1,tuple):
-                error(f"'sorted' function recieved non-tuple input:\n"+ast.val.line)
+                error(f"'sorted' function recieved non-list input:\n"+ast.val.line)
             return tuple(sorted(r1))
     if ast.nodeType == "var":
         if ast.val.raw == "$":
