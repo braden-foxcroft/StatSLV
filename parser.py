@@ -309,7 +309,7 @@ def lex(fileStr):
             res.append(Token(char,char.pos,char.line))
         else:
             error(f"Unexpected char at start of token: {char.charAtPos()}")
-    res.append(Token("\n",-1,"<Compiler added linebreak at end of file>")) # To always end on an empty line.
+    res.append(Token("\n",-1,"<Compiler-added linebreak at end of file>")) # To always end on an empty line.
     ind,toks = getIndent(s,ind)
     res += toks
     return res

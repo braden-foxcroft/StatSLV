@@ -2,6 +2,6 @@
 - Test the parser and lexer. Ensure that error messages make sense.
 - Check for TODOs inside files
 - Documentation and code samples
-- Clean up command-line args. Soo many.
 - Add graph-as-JSON output and JSON input.
 - Add 'break' and 'continue'
+
