@@ -599,7 +599,7 @@ def parseCommand(s):
     var = parseVar(s," or command")
     if s.peek != "=":
         if s.peek == "==":
-            error(red("Error:") + f"'{var.val.raw} {red('==')}' should probably be '{var.val.raw} {green('=')}'\nLocation: {s.peek}")
+            error(red("Error:") + f"\n\t'{var.val.raw} {red('==')}'\n\tshould probably be\n\t'{var.val.raw} {green('=')}'\nLocation: {s.peek}")
         error(red("Error:") + f" '{var}' is not a command. (You may be missing an '=' sign)\nLocation: {s.peek}")
     op = getAssignOp(s)
     expr = parseExpr(s)
@@ -637,6 +637,8 @@ def parseExpr(s):
     """Parses an expression from the stack. Returns an node of type expr."""
     pos = s.peek.pos
     expr = parseExpr1(s)
+    if s.peek == "=":
+        error(f"Inside expressions, use '{green('==')}' not '{red('=')}'. Error at:\n\t{s.peek}")
     return AST(Token("expr",pos),[expr],"expr")
     
 
@@ -742,10 +744,14 @@ def parseExpr9(s):
         return AST(s.pop(),[],"var")
     if s.peek == "()":
         return AST(s.pop(),[],"list")
+    if s.peek == "=":
+        error(f"Inside expressions, use '{green('==')}' not '{red('=')}'. Error at:\n\t{s.peek}")
     if s.peek != "(":
         error(f"While parsing an expression, expected a value, '(', or a unary operator. Got: {s.peek}")
     s.pop()
     expr = parseExpr1(s)
+    if s.peek == "=":
+        error(f"Inside expressions, use '{green('==')}' not '{red('=')}'. Error at:\n\t{s.peek}")
     expect(s,")")
     return expr
 

@@ -3,5 +3,5 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - Clean up command-line args. Soo many.
-- Special case: 'expr' eval will end if it sees a '='. This should be an error for putting an '=' in the wrong place
-
+- Add graph-as-JSON output and JSON input.
+- Add 'break' and 'continue'

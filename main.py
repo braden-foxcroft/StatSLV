@@ -513,7 +513,6 @@ def runBlock(ast,varLookup,data,conts,autoMark):
         conts = runCommand(command,varLookup,data,conts,autoMark)
     return conts
 
-
 def doEval(ast,cont,odds,allowNull):
     """Takes:
         an expression AST,
@@ -556,8 +555,16 @@ def doEval(ast,cont,odds,allowNull):
         if ast.val == "+":
             if isinstance(r1,str) or isinstance(r2,str):
                 r1,r2 = str(r1),str(r2)
+            elif isinstance(r1,tuple) and not isinstance(r2,tuple):
+                r2 = (r2,)
+            elif isinstance(r2,tuple) and not isinstance(r1,tuple):
+                r1 = (r1,)
             return r1 + r2
-        if ast.val == "-": return r1 - r2
+        if ast.val == "-":
+            if isinstance(r1,tuple):
+                if not isinstance(r2,tuple): r2 = (r2,)
+                return listSub(r1,r2)
+            return r1 - r2
         if ast.val == "*": return r1 * r2
         if ast.val == "//": return r1 // r2
         if ast.val == "/": return Frac(r1,r2)
@@ -600,6 +607,23 @@ def doEval(ast,cont,odds,allowNull):
     if ast.nodeType == "str": return ast.val.val
     if ast.nodeType == "list": return ast.val.val
     raise Exception(f"Unkown ast node: {ast.nodeType} {ast.val.raw}")
+
+def isNumber(a):
+    """Checks if something is an int or Fraction. (a 'number' as defined by StatSLV)"""
+    return isinstance(a,int) or isinstance(a,Fraction)
+
+def listSub(a,b):
+    """Subtracts one list from another (a - b).
+    Removes the items one-by-one"""
+    res = []
+    b = list(b)
+    for i in a:
+        if i in b:
+            b.remove(i)
+            continue
+        res.append(i)
+    return tuple(res)
+
 
 
 ast = parse(fileS)
