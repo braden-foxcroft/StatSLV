@@ -1,0 +1,22 @@
+
+StatSLV is a programming language which makes it easier to solve statistics problems. Write the problem in code, and it will work out the answer on its own!
+
+Start by trying this code. Open a command-line terminal in the same folder as this guide.
+On linux:
+
+	python3 main.py examples/twoDice.sslv
+
+On Windows:
+
+	main.py examples\twoDice.sslv
+
+The output should say '1/6'. There is a 1/6 chance that you roll two dice and their sum is 7.
+
+Open the "examples/twoDice.sslv" program in a text editor of your choice. The program is written in the StatSLV language: a language I designed, based largely on Python (with a touch of SQL).
+
+Try changing the '7' in the program to a '12'. When you run it again, the result will be 1/36, the odds of getting two 6s in a row.
+
+For more examples, consider '90Heads.sslv', 'montyHall.sslv', or 'savingThrow.sslv'. These give you a decent idea of the syntax of the language.
+
+For more info, see the 'Full_Guide.md' file. That file is set up so that ctrl-f will usually find what you are looking for.
+

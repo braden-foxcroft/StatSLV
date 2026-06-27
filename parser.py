@@ -304,6 +304,8 @@ def lex(fileStr):
             # var name or keyword
             name = str(char)
             while isAlpha(s.peek) or isDigit(s.peek) or s.peek == "_" or s.peek == "~": name += s.pop()
+            if name == "while":
+                error(red("Error") + ": 'while' loops are not supported in this language. Please use 'for' loops instead. If the word 'while' appears anywhere in your program (excluding comments), this error will appear.")
             res.append(Token(name,char.pos,char.line))
         elif char == "_":
             res.append(Token(char,char.pos,char.line))
