@@ -3,5 +3,3 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - Add graph-as-JSON output and JSON input.
-- Add 'break' and 'continue'
-

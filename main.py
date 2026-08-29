@@ -60,6 +60,7 @@ ParserPrint = parser.add_argument_group('Print default options')
 ParserPrint.add_argument('-printa',"-pa",action='store_true',help=showArg("'print' will be treated like 'printa' (show absolute probablilty for print to occur). This is the default.",argsIO))
 ParserPrint.add_argument('-printc',"-pc",action='store_true',help=showArg("'print' will be treated like 'printc'. (show count for how many times it printed)",argsIO))
 ParserPrint.add_argument('-printr',"-pr",action='store_true',help=showArg("'print' will be treated like 'printr'. (show relative probability for print to occur.)",argsIO))
+ParserPrint.add_argument('-printn',"-pn",action='store_true',help=showArg("Don't print anything.",argsIO))
 
 ParserGraph = parser.add_argument_group('Graph options')
 ParserGraph.add_argument('-graph','-g',action='store_true',help=showArg("Make a graph of the results. Uses graphviz graph-to-pdf converter",argsCommon or argsGraph))
@@ -441,6 +442,8 @@ def runCommand(ast,varLookup,data,conts,autoMark):
             newSubConts = runBlock(block,varLookup,data,subConts,autoMark)
             newConts = newConts + newSubConts
         return newConts
+    elif ast.val in ["print","printc","printa","printr"] and args.printn:
+        return conts.discard(ast.discardsInt)
     elif ast.val == "printc" or (ast.val == "print" and args.printc):
         # Print each item, tracking count.
         toPrint = []

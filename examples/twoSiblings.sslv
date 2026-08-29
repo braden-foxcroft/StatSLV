@@ -10,8 +10,7 @@ aWDay   = select(1 to 7)
 bWDay   = select(1 to 7)
 
 bychance (aIsMale == 1 and aWDay == 1) or (bIsMale == 1 and bWDay == 1)
-# Interestingly, there is another interpretation of the word problem where
-# you would write the 'bychance' statement this way instead:
+# Interestingly, there is another interpretation of the word problem where you would write the 'bychance' statement this way instead:
 # bychance aIsMale == 1 and aWDay == 1
 
 if aIsMale and bIsMale:
