@@ -3,3 +3,5 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - Add graph-as-JSON output and JSON input.
+- GUI version with auto-updating graph (maybe website?)
+- Refactor code to not use global vars.
