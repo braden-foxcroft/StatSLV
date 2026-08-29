@@ -2,7 +2,10 @@ from nicegui import ui
 import graphviz
 import asyncio
 
-# Note: this file is mostly AI-generated.
+
+# Note: this file started out as an AI-generated template.
+# I manually changed it afterward.
+
 
 # ------------------------------------------------------------
 # Your existing analyzer goes here
@@ -58,24 +61,6 @@ async def update_graph():
             white-space: pre-wrap;
         ">{e}</pre>
         """
-
-
-def source_changed(_):
-    """Called whenever the editor changes."""
-
-    global update_task
-
-    if update_task is not None:
-        update_task.cancel()
-
-    update_task = asyncio.create_task(delayed_update())
-
-
-async def delayed_update():
-    # Wait for the user to stop typing.
-    await asyncio.sleep(0.4)
-
-    await update_graph()
 
 
 # ------------------------------------------------------------

@@ -183,14 +183,20 @@ class Token:
         if this.isInt: return this.val == other
         return this.raw == other
 
+class ExitException(Exception):
+    """This class is the exception called by 'error'. It contains the information about the problem, which can be printed if needed."""
+    
+
+    def __init__(this,message):
+        this.customMessage = message
+        __super__().__init__()
+
+    def __str__(this): return this.customMessage
+    def __repr__(this): return this.customMessage
+
 def error(msg):
     """Prints an error message on stderr."""
-    try:
-        import sys
-        print(msg,file=sys.stderr)
-    except: # Try again, but print to stdout instead
-        print(msg)
-    exit(1)
+    raise ExitException(msg)
 
 
 def getIndent(s,ind):

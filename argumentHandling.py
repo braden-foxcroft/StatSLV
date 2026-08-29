@@ -8,7 +8,8 @@ def showArg(helpMessage,show):
     if show: return helpMessage
     return argparse.SUPPRESS
 
-def parseArgs(argList):
+def parseArgs(argList,noFileNeeded=False):
+    """Parses a list of arguments, like sys.argv[1:]. You can tell it to skip the file argument, if desired"""
 
     argsIO = False
     argsGraph = False
@@ -110,11 +111,14 @@ def parseArgs(argList):
     if not (args.p or args.P != None or args.d or args.D != None or args.f or args.F != None or args.b or args.B != None):
         args.f = True
 
-    if args.file == None:
-        error("Argument required: filename")
+    if noFileNeeded:
+        fileS = None
+    else:
+        if args.file == None:
+            error("Argument required: filename")
 
-    try:
-        with open(args.file,"rt",newline='') as file: fileS = file.read()
-    except:
-        error("Error: File could not be opened.")
+        try:
+            with open(args.file,"rt",newline='') as file: fileS = file.read()
+        except:
+            error("Error: File could not be opened.")
     return args,fileS

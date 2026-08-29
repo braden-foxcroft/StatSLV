@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 
-from parser import parse,error
+from parser import parse,error,ExitException
 from staticAnalysis import deAlias,addMetadata,testExample,showDiscards
 from argumentHandling import parseArgs
 from collections import defaultdict
@@ -594,7 +594,7 @@ def listSub(a,b):
 
 
 
-def strFrac(res, forceNoColor=False):
+def strFrac(res, args,forceNoColor=False):
     """Returns a Fraction as a colored fraction str."""
     if not isinstance(res,Fraction):
         error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
@@ -629,24 +629,24 @@ def printNiceFrac(res):
     print("\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4)))
     
     
-def showAgg(res):
+def showAgg(res,args):
     # Takes a dict (str -> odds). Prints it line-by-line, with each line having the format:
     # (odds) item 
     keys = list(res)
     keys.sort(key=stringSortKey)
     maxLen = 0
     for key in keys:
-        maxLen = max(maxLen,len(strFrac(res[key],True)))
+        maxLen = max(maxLen,len(strFrac(res[key],args,True)))
     for key in keys:
-        sf = strFrac(res[key],True)
-        sfc = strFrac(res[key],False)
+        sf = strFrac(res[key],args,True)
+        sfc = strFrac(res[key],args,False)
         if len(sf) < maxLen:
             sfc = sfc + " " * (maxLen - len(sf))
         print(f"({sfc}) {str(key)}")
 
     
 
-def showResult(res):
+def showResult(res,args):
     """Shows the result (Fraction object) using the global 'args' variable to format it correctly.
     May print multiple lines if multiple argument flags are provided."""
     if args.p:
@@ -658,16 +658,22 @@ def showResult(res):
     if args.D:
         print(col_int(round(floatOrInt(res),args.D)))
     if args.f:
-        print(strFrac(res))
+        print(strFrac(res,args))
     if args.F != None:
-        print(strFrac(res.limit_denominator(args.F)))
+        print(strFrac(res.limit_denominator(args.F),args))
     if args.b:
         printNiceFrac(res)
     if args.B != None:
         printNiceFrac(res.limit_denominator(args.B))
 
 
-if __name__ == "__main__":
+def runInternal(fileCont,sysArgs):
+    # TODO this should take a string file and spit out a fractional result, error message, and graph SVG.
+    args,fileS = parseArgs(sysArgs,True)
+    # TODO
+
+def main():
+    """This is the function which runs when used as a freestanding command-line compiler/interpreter"""
     args,fileS = parseArgs(sys.argv[1:])
     #print(args)
 
@@ -733,12 +739,12 @@ if __name__ == "__main__":
                 res += returns[val] * val
                 odds += returns[val]
             res = res / odds
-            showResult(res)
+            showResult(res,args)
         else:
             res = defaultdict(Fraction)
             for key in returns:
                 res[(key)] += returns[key]
-            showAgg(res)
+            showAgg(res,args)
     else:
         if d._done != 0:
             if d._pass and not d._fail:
@@ -754,7 +760,7 @@ if __name__ == "__main__":
                 print(green('No result.'))
         else:
             res = Frac(d._pass,d._pass+d._fail)
-            showResult(res)
+            showResult(res,args)
 
 
     if args.graph:
@@ -774,3 +780,16 @@ if __name__ == "__main__":
         showFile = not args.graphNoShowFile
         MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress,showErrors,showFile)
 
+
+
+if __name__ == "__main__":
+
+    try:
+        main()
+    except ExitException:
+        try:
+            import sys
+            print(msg,file=sys.stderr)
+        except: # Try again, but print to stdout instead
+            print(msg)
+        exit(1)
