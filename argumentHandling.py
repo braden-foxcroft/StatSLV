@@ -1,6 +1,6 @@
 
 import argparse
-
+import parser # used for error()
 
 
 def showArg(helpMessage,show):

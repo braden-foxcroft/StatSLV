@@ -1,36 +1,32 @@
 from nicegui import ui
 import graphviz
 import asyncio
-
+import main
+import traceback
+from parser import ExitException
 
 # Note: this file started out as an AI-generated template.
 # I manually changed it afterward.
 
 
-# ------------------------------------------------------------
-# Your existing analyzer goes here
-# ------------------------------------------------------------
-
 def make_graph(source: str) -> str:
     """
-    Take source code and return a Graphviz SVG.
+    Take source code and return a Graphviz SVG."""
+    try:
+        res, graph = main.runInternal(source,"")
+    except ExitException as e:
+        return e.customMessage
+    except Exception as e:
+        e = traceback.format_exc()
+        return f"""
+        <pre style="
+            color: #c00;
+            padding: 1em;
+            white-space: pre-wrap;
+        ">{e}</pre>
+        """
 
-    Replace this function with your actual analyzer.
-    """
-
-    dot = graphviz.Digraph(format='svg')
-
-    # Example graph just to demonstrate the GUI
-    dot.node('A', source)
-    dot.node('B', 'Parser')
-    dot.node('C', 'Analyzer')
-    dot.node('D', 'Output')
-
-    dot.edge('A', 'B')
-    dot.edge('B', 'C')
-    dot.edge('C', 'D')
-
-    return dot.pipe().decode('utf-8')
+    return graph
 
 
 # ------------------------------------------------------------
@@ -48,19 +44,9 @@ async def update_graph():
 
     source = editor.value
 
-    try:
-        svg = await asyncio.to_thread(make_graph, source)
+    svg = await asyncio.to_thread(make_graph, source)
+    if svg != None: graph.content = svg
 
-        graph.content = svg
-
-    except Exception as e:
-        graph.content = f"""
-        <pre style="
-            color: #c00;
-            padding: 1em;
-            white-space: pre-wrap;
-        ">{e}</pre>
-        """
 
 
 # ------------------------------------------------------------
@@ -80,9 +66,10 @@ with ui.row().classes('w-full h-screen no-wrap'):
 
         editor = ui.textarea(
             value='''\
-foo = 1
-bar = foo + 2
-baz = bar * 3
+select a from 1 to 3
+if a == 3
+\tpass
+fail
 '''
         ).classes(
             'w-full flex-grow font-mono'
@@ -98,10 +85,9 @@ baz = bar * 3
         )
 
         graph = ui.html(
-            make_graph(editor.value)
+            "hello world"
         ).classes(
             'w-full flex-grow overflow-auto'
         )
-
 
 ui.run()

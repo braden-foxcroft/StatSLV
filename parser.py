@@ -189,7 +189,6 @@ class ExitException(Exception):
 
     def __init__(this,message):
         this.customMessage = message
-        __super__().__init__()
 
     def __str__(this): return this.customMessage
     def __repr__(this): return this.customMessage

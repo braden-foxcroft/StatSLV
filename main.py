@@ -667,13 +667,90 @@ def showResult(res,args):
         printNiceFrac(res.limit_denominator(args.B))
 
 
+def generateRes(d):
+    """Takes the Data object, returns a string with the results. Designed to never throw an error."""
+    if list(d._returns) == [""] or list(d._returns) == [None]:
+        return ""
+    if list(d._returns):
+        return "error: returns do not automatically aggregate in GUI mode (Unless I implement it later)"
+    if d._done and d._pass and d._fail:
+        return "Error:\nCannot use 'pass', 'fail', and 'done' in the same file. (if execution reaches the end of the file, this is considered a 'done')"
+    if d._done:
+        if d._pass:
+            d._fail = d._done
+        elif d._fail:
+            d._pass = d._done
+        else:
+            return "no result. Use 'pass' and 'fail' inside the program to get the odds of a pass"
+        d._done = 0
+    if d._pass == 0 and d._fail == 0: return "no result. check your 'bychance' statements."
+
+    return str(Frac(d._pass,d._pass+d._fail)) # TODO add in '/n percentage', make everything here nicer.
+
+
 def runInternal(fileCont,sysArgs):
-    # TODO this should take a string file and spit out a fractional result, error message, and graph SVG.
+    """a simplified version of main(), but it is designed to be called from part of a bigger program. It cannot be run multiple times in parallel (due to the use of global vars, most notably MD.graph and MD.hasGraph.
+    Takes a file as a str and system arguments as a str"""
     args,fileS = parseArgs(sysArgs,True)
-    # TODO
+    fileS = fileCont
+
+    # No discards. This is used for configuring the AST
+    nd = args.DebugNoDiscards
+
+    graph.doImports()
+
+    Color.doColor = False # No color for outputs
+
+    ast = parse(fileS)
+    ast = deAlias(ast)
+    ast,varLookup = addMetadata(ast,nd)
+    MD.graph = graph.Graph(False)
+    MD.hasGraph = True
+    d = Data()
+    c = Contexts()
+    c += setVar((None,)*len(varLookup),varLookup["~inpCount~"],0),MD(Frac(1,1),"root")
+    if args.graphAutoMarkSimple:
+        autoMark = 2
+    elif args.graphAutoMark:
+        autoMark = 1
+    else:
+        # Automark if there are no marks pre-defined.
+        marks = ast.filter(lambda node: node.nodeType == "command" and node.val == "!")
+        autoMark = int(not marks)
+
+    contRes = runBlock(ast,varLookup,d,c,autoMark)
+    
+    # TODO manage the result: return values aren't useful, only need to support pass/fail    
+    strRes = generateRes(d)
+
+    graphRes = makeGraph(args,True)
+
+    # TODO make sure this function works correctly
+
+    return contRes, graphRes
+
+def makeGraph(args,outputAsStr=False):
+
+    labelNodes = not args.graphNoLabelNodes and not args.graphNoLabels
+    labelEdges = not args.graphNoLabelEdges and not args.graphNoLabels
+    brightRed = args.graphBrightRed or args.graphVibrant
+    brightGreen = args.graphBrightGreen or args.graphVibrant
+    brightBlue = args.graphBrightBlue or args.graphVibrant
+    darkGrey = args.graphDarkGrey or args.graphVibrant
+    noSingleton = args.graphNoSingleton
+    bubbles = args.graphBubbles
+    colorEdges = args.graphColorEdges or args.graphVibrant
+    colorEdgesDark = args.graphColorEdgesDark
+    colorBorders = args.graphColorBorders or args.graphVibrant
+    showProgress = args.graphProgress
+    showErrors = args.graphShowErrors
+    showFile = not args.graphNoShowFile
+    return MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress,showErrors,showFile,outputAsStr)
 
 def main():
     """This is the function which runs when used as a freestanding command-line compiler/interpreter"""
+    args,fileS = parseArgs(sys.argv[1:],True) # Don't ask for file
+
     args,fileS = parseArgs(sys.argv[1:])
     #print(args)
 
@@ -764,32 +841,17 @@ def main():
 
 
     if args.graph:
-        labelNodes = not args.graphNoLabelNodes and not args.graphNoLabels
-        labelEdges = not args.graphNoLabelEdges and not args.graphNoLabels
-        brightRed = args.graphBrightRed or args.graphVibrant
-        brightGreen = args.graphBrightGreen or args.graphVibrant
-        brightBlue = args.graphBrightBlue or args.graphVibrant
-        darkGrey = args.graphDarkGrey or args.graphVibrant
-        noSingleton = args.graphNoSingleton
-        bubbles = args.graphBubbles
-        colorEdges = args.graphColorEdges or args.graphVibrant
-        colorEdgesDark = args.graphColorEdgesDark
-        colorBorders = args.graphColorBorders or args.graphVibrant
-        showProgress = args.graphProgress
-        showErrors = args.graphShowErrors
-        showFile = not args.graphNoShowFile
-        MD.graph.convert(labelNodes,labelEdges,brightRed,brightGreen,brightBlue,darkGrey,noSingleton,bubbles,colorEdges,colorEdgesDark,colorBorders,showProgress,showErrors,showFile)
+        makeGraph(args)
 
 
 
 if __name__ == "__main__":
-
     try:
         main()
-    except ExitException:
+    except ExitException as e:
         try:
             import sys
-            print(msg,file=sys.stderr)
+            print(e.customMessage,file=sys.stderr)
         except: # Try again, but print to stdout instead
-            print(msg)
+            print(e.customMessage)
         exit(1)

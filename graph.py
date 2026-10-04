@@ -238,8 +238,9 @@ class Graph:
 			node.nodeDone()
 		return
 
-	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,darkGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorEdgesDark=False,colorBorders=False,showPrints=True,showErrors=False,showFile=True,file="output"):
-		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str."""
+	def convert(this,labelNodes=True,labelEdges=True,brightRed=False,brightGreen=False,brightBlue=False,darkGrey=False,removeLinear=False,useCircle=False,colorEdges=False,colorEdgesDark=False,colorBorders=False,showPrints=True,showErrors=False,showFile=True,outputAsStr=False,file="output"):
+		"""Generate, save, and display a graph PDF. All items are bool except 'file', which is a str.
+		This can also output an svg str instead"""
 		if this.dummy: return print("why is 'convert' being called on a dummy graph?")
 		if removeLinear:
 			if showPrints: print("Removing linear nodes...",end="",flush=True)
@@ -249,7 +250,10 @@ class Graph:
 		this.cleanup() # figure out all necessary win/lose.
 		if showPrints: print("Done.")
 		if showPrints: print("Loading graph info...",end="",flush=True)
-		dot = create_graph(useCircle)
+		if outputAsStr:
+			dot = create_graph(useCircle,"svg")
+		else:
+			dot = create_graph(useCircle,"pdf")
 		for nodeId in this:
 			node = this[nodeId]
 			if labelNodes: label = node.label
@@ -270,7 +274,10 @@ class Graph:
 				add_edge(dot, node.id, other.id, label, color)
 		if showPrints: print("Done.")
 		if showPrints: print("Graphviz working...",end="",flush=True)
-		if showErrors:
+		if outputAsStr:
+			res = dot.pipe().decode('utf-8')
+			return res # a str version of a svg file.
+		elif showErrors:
 			toFile(dot,showFile)
 		else:
 			with SuppressOutput(): toFile(dot,showFile)
@@ -298,11 +305,11 @@ def chooseColor(win,brightRed,brightGreen,brightBlue,darkGrey):
 	raise Exception("chooseColor did not return result!")
 
 
-def create_graph(circle=False):
+def create_graph(circle=False,formatType="pdf"):
 	"""Creates a dot object. Takes a bool (circle or not)"""
 	if circle: shape = "circle"
 	else: shape = "oval"
-	dot = Digraph(name="mygraph",format="pdf")
+	dot = Digraph(name="mygraph",format=formatType)
 	dot.attr(rankdir="TB")
 	dot.attr("node", shape=shape, style="filled")
 	return dot
