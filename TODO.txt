@@ -1,7 +1,16 @@
 - Update syntax highlighting plugins
 - Test the parser and lexer. Ensure that error messages make sense.
+	- 4 spaces = 1 tab
 - Check for TODOs inside files
 - Documentation and code samples
-- Add graph-as-JSON output and JSON input.
-- GUI version with auto-updating graph (maybe website?)
-- Refactor code to not use global vars.
+- GUI version with auto-updating graph:
+	- flag-controlled timeouts on execution of code
+	- flag options in interface
+	- better error message and run indicator
+	- Better SVG viewer: zoomed-out by default, with buttons for zooming in if needed.
+	- Thread-safety and a handler thread.
+	- Use a text editor with syntax highlighting (maybe also custom- colored chars for error messages)
+		- Errors may need to provide location in numerical form.
+		- Grace period for showing error while typing?
+	- tab key = type a tab.
+	- Flag on WebVersion for loading in file conts from chosen source. (in fact, just use the argument parser I already made, then allow it to be modified as-needed.)

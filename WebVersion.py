@@ -1,9 +1,17 @@
-from nicegui import ui
+try:
+    from nicegui import ui
+except:
+    print("Missing module 'nicegui'. To install:\n\tpip install nicegui")
+    exit(1)
+
 import graphviz
 import asyncio
 import main
 import traceback
 from parser import ExitException
+import graph
+
+graph.doImports() # Make sure that the imports work.
 
 # Note: this file started out as an AI-generated template.
 # I manually changed it afterward.
@@ -15,8 +23,10 @@ def make_graph(source: str) -> str:
     try:
         res, graph = main.runInternal(source,"")
     except ExitException as e:
+        return None # TODO errors unhandled
         return e.customMessage
     except Exception as e:
+        return None # TODO errors unhandled
         e = traceback.format_exc()
         return f"""
         <pre style="
@@ -34,18 +44,39 @@ def make_graph(source: str) -> str:
 # ------------------------------------------------------------
 
 graph = None
-update_task = None
 
 
 async def update_graph():
     """Regenerate the graph after the user stops typing."""
 
-    global update_task
 
     source = editor.value
 
-    svg = await asyncio.to_thread(make_graph, source)
-    if svg != None: graph.content = svg
+    svgVal = await asyncio.to_thread(make_graph, source)
+    if svgVal == None: return
+    await ui.run_javascript('''
+            if (window.graphViewer) {
+                window.graphZoom = graphViewer.getZoom();
+                window.graphPan = graphViewer.getPan();
+                document.querySelector('#graph-container').style.visibility = 'hidden';
+            }
+        ''')
+
+    graph.content = svgVal
+
+    await makeSVGViewer()
+
+    await ui.run_javascript('''
+        if (window.graphViewer) {
+            graphViewer.updateBBox();
+
+            if (window.graphZoom !== undefined) {
+                graphViewer.zoom(graphZoom);
+                graphViewer.pan(graphPan);
+            }
+                document.querySelector('#graph-container').style.visibility = 'visible';
+        }
+    ''')
 
 
 
@@ -54,6 +85,22 @@ async def update_graph():
 # ------------------------------------------------------------
 
 ui.page_title('Code Graph Explorer')
+
+ui.add_head_html('''
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+''')
+
+ui.add_css('''
+    #graph-container {
+        width: 100%;
+        height: 100%;
+    }
+
+    #graph-container svg {
+        width: 100%;
+        height: 100%;
+    }
+''')
 
 with ui.row().classes('w-full h-screen no-wrap'):
 
@@ -85,9 +132,33 @@ fail
         )
 
         graph = ui.html(
-            "hello world"
+            make_graph(editor.value)
+        ).props(
+            'id=graph-container'
         ).classes(
-            'w-full flex-grow overflow-auto'
+            'w-full h-full flex-grow overflow-auto'
         )
+
+
+
+async def makeSVGViewer():
+    await ui.run_javascript('''
+        const svg = document.querySelector('#graph-container svg');
+
+        if (svg) {
+            window.graphViewer = svgPanZoom(svg, {
+                zoomEnabled: true,
+                panEnabled: true,
+                mouseWheelZoomEnabled: true,
+                dblClickZoomEnabled: true,
+                controlIconsEnabled: false,
+                fit: true,
+                center: true,
+            });
+        }
+    ''')
+
+ui.timer(0.1, makeSVGViewer, once=True)
+
 
 ui.run()
