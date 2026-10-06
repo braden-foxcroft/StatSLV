@@ -55,26 +55,30 @@ async def update_graph():
     svgVal = await asyncio.to_thread(make_graph, source)
     if svgVal == None: return
     await ui.run_javascript('''
-            if (window.graphViewer) {
+            if (window.graphViewer && !window.graphFitted) {
                 window.graphZoom = graphViewer.getZoom();
                 window.graphPan = graphViewer.getPan();
                 document.querySelector('#graph-container').style.visibility = 'hidden';
             }
         ''')
-
+    
     graph.content = svgVal
 
     await makeSVGViewer()
 
     await ui.run_javascript('''
-        if (window.graphViewer) {
+        if (window.graphFitted) {
+            graphFitted = false
+            graphViewer.updateBBox();
+            fitGraph()
+        } else if (window.graphViewer) {
             graphViewer.updateBBox();
 
             if (window.graphZoom !== undefined) {
                 graphViewer.zoom(graphZoom);
                 graphViewer.pan(graphPan);
             }
-                document.querySelector('#graph-container').style.visibility = 'visible';
+            document.querySelector('#graph-container').style.visibility = 'visible';
         }
     ''')
 
@@ -100,12 +104,18 @@ ui.add_css('''
         width: 100%;
         height: 100%;
     }
+
+    .nicegui-content {
+        padding-top: 0px;
+        padding-bottom: 0px;
+        box-sizing: border-box;
+    }
 ''')
 
 with ui.row().classes('w-full h-screen no-wrap'):
 
     # Left side: editor
-    with ui.column().classes('w-1/2 h-full'):
+    with ui.column().classes('w-1/2 h-full pt-3'):
 
         ui.label('Source Code').classes(
             'text-lg font-bold p-2'
@@ -119,29 +129,41 @@ if a == 3
 fail
 '''
         ).classes(
-            'w-full flex-grow font-mono'
+            'w-full h-full font-mono'
         )
 
         editor.on_value_change(update_graph)
 
     # Right side: graph
-    with ui.column().classes('w-1/2 h-full'):
+    with ui.column().classes('w-1/2 h-98/100 pt-3'):
 
         ui.label('Graph').classes(
             'text-lg font-bold p-2'
         )
 
-        graph = ui.html(
-            make_graph(editor.value)
-        ).props(
-            'id=graph-container'
-        ).classes(
-            'w-full h-full flex-grow overflow-auto'
-        )
+        with ui.element('div').classes('relative w-full h-full overflow-hidden'):
+            
+            graph = ui.html(
+                make_graph(editor.value)
+            ).props(
+                'id=graph-container'
+            ).classes(
+                'w-full h-full border border-black'
+            )
+
+            ui.button(
+                icon='fit_screen',
+                on_click=lambda: ui.run_javascript('fitGraph()')
+            ).props(
+                'flat round dense id="fullsize-button"'
+            ).classes(
+                'absolute top-1 right-1 z-10'
+            ).tooltip('Keep full graph visible')
 
 
-
+alreadyRunOnce = False
 async def makeSVGViewer():
+    global alreadyRunOnce
     await ui.run_javascript('''
         const svg = document.querySelector('#graph-container svg');
 
@@ -155,8 +177,48 @@ async def makeSVGViewer():
                 fit: true,
                 center: true,
             });
+
+            graphViewer.setOnPan(() => {
+                if (graphFitted) {
+                    graphFitted = false;
+                    fitButton.style.display = '';
+                }
+            });
+
+            graphViewer.setOnZoom(() => {
+                if (graphFitted) {
+                    graphFitted = false;
+                    fitButton.style.display = '';
+                }
+            });
         }
     ''')
+    if not alreadyRunOnce:
+        await ui.run_javascript('''
+window.fitButton = document.querySelector('#fullsize-button');
+window.graphFitted = false;
+const observer = new ResizeObserver(() => {
+    graphViewer.resize();
+    if (graphFitted) {
+        fitGraph()
+    }
+});
+
+observer.observe(document.getElementById('graph-container'));
+
+window.fitGraph = function() {
+    window.graphFitted = false;
+    graphViewer.fit();
+    graphViewer.center();
+    window.fitButton.style.display = 'none';
+    window.graphFitted = true;
+};
+
+fitButton.addEventListener('press',fitGraph);
+
+fitGraph()
+        ''')
+        alreadyRunOnce = True
 
 ui.timer(0.1, makeSVGViewer, once=True)
 

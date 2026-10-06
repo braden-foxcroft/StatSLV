@@ -51,7 +51,7 @@ class Node:
 	nextFree = 0
 	def __init__(this,theId=None,label=None,odds=None):
 		if theId == None:
-			this.id = f"~{Node.nextFree}~"
+			this.id = f"Node {Node.nextFree}"
 			Node.nextFree += 1
 		else:
 			this.id = theId

@@ -698,6 +698,7 @@ def runInternal(fileCont,sysArgs):
     nd = args.DebugNoDiscards
 
     graph.doImports()
+    graph.Node.nextFree = 0
 
     Color.doColor = False # No color for outputs
 

@@ -7,10 +7,11 @@
 	- flag-controlled timeouts on execution of code
 	- flag options in interface
 	- better error message and run indicator
-	- Better SVG viewer: zoomed-out by default, with buttons for zooming in if needed.
 	- Thread-safety and a handler thread.
-	- Use a text editor with syntax highlighting (maybe also custom- colored chars for error messages)
+	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
 		- Grace period for showing error while typing?
 	- tab key = type a tab.
-	- Flag on WebVersion for loading in file conts from chosen source. (in fact, just use the argument parser I already made, then allow it to be modified as-needed.)
+	- Flag on WebVersion for loading in file conts from chosen source. (in fact, just use the argument parser I already made, then allow args to be configured inside the website.)
+	- Re-running button (which also shows status)
+	- Control over automatic re-running (turns off if previously timed out)
