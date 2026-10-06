@@ -10,6 +10,7 @@ import main
 import traceback
 from parser import ExitException
 import graph
+import codeEditor # The module which manages code editing.
 
 graph.doImports() # Make sure that the imports work.
 
@@ -46,11 +47,10 @@ def make_graph(source: str) -> str:
 graph = None
 
 
-async def update_graph():
+async def update_graph(e):
     """Regenerate the graph after the user stops typing."""
 
-
-    source = editor.value
+    source = e.args["text"]
 
     svgVal = await asyncio.to_thread(make_graph, source)
     if svgVal == None: return
@@ -110,6 +110,19 @@ ui.add_css('''
         padding-bottom: 0px;
         box-sizing: border-box;
     }
+
+    #code-editor {
+    width: 100%;
+    height: 100%;
+}
+
+    #code-editor .cm-editor {
+        height: 100% !important;
+    }
+
+    #code-editor .cm-scroller {
+        overflow: auto !important;
+    }
 ''')
 
 with ui.row().classes('w-full h-screen no-wrap'):
@@ -121,18 +134,9 @@ with ui.row().classes('w-full h-screen no-wrap'):
             'text-lg font-bold p-2'
         )
 
-        editor = ui.textarea(
-            value='''\
-select a from 1 to 3
-if a == 3
-\tpass
-fail
-'''
-        ).classes(
-            'w-full h-full font-mono'
-        )
+        editor = codeEditor.makeEditor()
 
-        editor.on_value_change(update_graph)
+        ui.on('code_changed', update_graph)
 
     # Right side: graph
     with ui.column().classes('w-1/2 h-98/100 pt-3'):
@@ -144,7 +148,7 @@ fail
         with ui.element('div').classes('relative w-full h-full overflow-hidden'):
             
             graph = ui.html(
-                make_graph(editor.value)
+                make_graph(codeEditor.initial_text)
             ).props(
                 'id=graph-container'
             ).classes(
@@ -159,6 +163,9 @@ fail
             ).classes(
                 'absolute top-1 right-1 z-10'
             ).tooltip('Keep full graph visible')
+
+
+codeEditor.addEditorScript()
 
 
 alreadyRunOnce = False
@@ -217,6 +224,7 @@ window.fitGraph = function() {
 fitButton.addEventListener('press',fitGraph);
 
 fitGraph()
+makeEditor()
         ''')
         alreadyRunOnce = True
 
