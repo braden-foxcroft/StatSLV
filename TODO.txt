@@ -4,7 +4,12 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - GUI version with auto-updating graph:
+	- Make converters between args obj and settings data obj.
+		- The default args should configure from the command-line when the web version is run
+		- the args should be given to the runner when it runs
+		- Each instance of the website needs its own args
 	- flag-controlled timeouts on execution of code
+		- A second error type, so that the runner can handle it correctly.
 	- flag options in interface
 	- better error message and run indicator
 	- Thread-safety and a handler thread.
@@ -15,3 +20,4 @@
 	- Flag on WebVersion for loading in file conts from chosen source. (in fact, just use the argument parser I already made, then allow args to be configured inside the website.)
 	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
+	- block use of INPUT in web version. Maybe block 'print' as well?

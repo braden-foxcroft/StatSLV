@@ -11,11 +11,13 @@ import traceback
 from parser import ExitException
 import graph
 import codeEditor # The module which manages code editing.
+import settingsPage
 
 graph.doImports() # Make sure that the imports work.
 
 # Note: this file started out as an AI-generated template.
 # I manually changed it afterward.
+# Most of the UI code is AI-generated, though.
 
 
 def make_graph(source: str) -> str:
@@ -125,18 +127,51 @@ ui.add_css('''
     }
 ''')
 
+def toggle_settings():
+    if settings_panel.visible:
+        settings_panel.set_visibility(False)
+        editor_panel.set_visibility(True)
+        title.text = 'Source Code'
+        toggle_button.props('icon=settings')
+    else:
+        editor_panel.set_visibility(False)
+        settings_panel.set_visibility(True)
+        title.text = 'Settings'
+        toggle_button.props('icon=code')
+
+def settings_changed(state):
+    # print(state)
+    # TODO make this work
+    pass
+
 with ui.row().classes('w-full h-screen no-wrap'):
 
     # Left side: editor
     with ui.column().classes('w-1/2 h-full pt-3'):
 
-        ui.label('Source Code').classes(
-            'text-lg font-bold p-2'
-        )
+        with ui.row().classes('w-full items-center px-2'):
+            title = ui.label('Source Code').classes('text-lg font-bold')
 
-        editor = codeEditor.makeEditor()
+            toggle_button = ui.button(
+                icon='settings'
+            ).props('flat round dense').classes('ml-auto')
 
-        ui.on('code_changed', update_graph)
+        with ui.element('div').classes(
+            'w-full flex-grow overflow-hidden'
+        ) as editor_panel:
+            editor = codeEditor.makeEditor()
+
+        with ui.element('div').classes(
+            'w-full flex-grow overflow-auto'
+        ) as settings_panel:
+            settings = settingsPage.Settings(on_change=settings_changed)
+
+        settings_panel.set_visibility(False)
+
+        toggle_button.on_click(toggle_settings)
+
+    
+    ui.on('code_changed', update_graph)
 
     # Right side: graph
     with ui.column().classes('w-1/2 h-98/100 pt-3'):
@@ -231,4 +266,4 @@ makeEditor()
 ui.timer(0.1, makeSVGViewer, once=True)
 
 
-ui.run()
+ui.run(reload=False)

@@ -12,10 +12,10 @@ Frac = Fraction
 
 import sys
 import os
-os.system("") # Turns on color codes, if needed. A hacky solution, though.
+os.system("") # Turns on ANSI color codes, if needed. Only relevant to a handful of versions of Windows 10, but since my device is one of them, I care.
 
 
-
+# Note: pretty much all of this code is human-generated. Files will have a disclaimer if AI was used to write code in that file.
 
 class Data:
     """Tracks passes, fails, exits, and returns."""

@@ -1,6 +1,8 @@
 from nicegui import ui
 import json
 
+# Note: this file is mostly AI-generated, with code modified by me as needed.
+
 def makeEditor():
     # The HTML element that will contain CodeMirror
     editor = ui.html('''
