@@ -227,7 +227,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
                 newConts += con,newMd
         return newConts.discard(ast.discardsInt)
     elif ast.val == "nop":
-        return conts
+        return conts.discard(ast.discardsInt)
     elif ast.val == "pass":
         for con,md in conts:
             data.doPass(md.odds)
@@ -688,10 +688,9 @@ def generateRes(d):
     return str(Frac(d._pass,d._pass+d._fail)) # TODO add in '/n percentage', make everything here nicer.
 
 
-def runInternal(fileCont,sysArgs):
+def runInternal(fileCont,args):
     """a simplified version of main(), but it is designed to be called from part of a bigger program. It cannot be run multiple times in parallel (due to the use of global vars, most notably MD.graph and MD.hasGraph.
-    Takes a file as a str and system arguments as a str"""
-    args,fileS = parseArgs(sysArgs,True)
+    Takes a file as a str and system arguments as an args obj"""
     fileS = fileCont
 
     # No discards. This is used for configuring the AST

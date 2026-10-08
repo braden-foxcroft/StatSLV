@@ -1,30 +1,48 @@
-try:
-    from nicegui import ui
-except:
-    print("Missing module 'nicegui'. To install:\n\tpip install nicegui")
-    exit(1)
-
-import graphviz
-import asyncio
-import main
-import traceback
-from parser import ExitException
-import graph
-import codeEditor # The module which manages code editing.
-import settingsPage
-
-graph.doImports() # Make sure that the imports work.
+#! /usr/bin/python3
 
 # Note: this file started out as an AI-generated template.
 # I manually changed it afterward.
 # Most of the UI code is AI-generated, though.
 
 
+import sys
+import argumentHandling
+# Argument handling. This way, the '-h' flag runs faster.
+args,fileS = argumentHandling.parseArgs(sys.argv[1:],True)
+args.printn = True # Block print statements.
+
+import graph
+graph.doImports() # Make sure that graphviz works. Exit otherwise.
+
+try:
+    from nicegui import ui
+except:
+    print("Missing module 'nicegui'. To install:\n\tpip install nicegui")
+    exit(1)
+
+import asyncio
+import main
+import traceback
+from parser import ExitException
+import codeEditor # The module which manages code editing.
+import settingsPage
+
+
+
+
+if fileS != None: # Use file contents if provided.
+    codeEditor.initial_text = fileS
+
 def make_graph(source: str) -> str:
     """
     Take source code and return a Graphviz SVG."""
     try:
-        res, graph = main.runInternal(source,"")
+        currentArgs = settingsPage.settingsToArgs(settings.get_state())
+    except:
+        # This will trigger if the settings haven't been set up yet.
+        currentArgs = args # The args parsed by the command-line
+    try:
+        res, graph = main.runInternal(source,currentArgs)
     except ExitException as e:
         return None # TODO errors unhandled
         return e.customMessage
@@ -38,7 +56,7 @@ def make_graph(source: str) -> str:
             white-space: pre-wrap;
         ">{e}</pre>
         """
-
+    
     return graph
 
 
@@ -48,11 +66,13 @@ def make_graph(source: str) -> str:
 
 graph = None
 
-
 async def update_graph(e):
     """Regenerate the graph after the user stops typing."""
 
-    source = e.args["text"]
+    if isinstance(e,str):
+        source = str(e)
+    else:
+        source = e.args["text"]
 
     svgVal = await asyncio.to_thread(make_graph, source)
     if svgVal == None: return
@@ -139,10 +159,13 @@ def toggle_settings():
         title.text = 'Settings'
         toggle_button.props('icon=code')
 
-def settings_changed(state):
-    # print(state)
-    # TODO make this work
-    pass
+async def settings_changed(state):
+    try:
+        code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
+    except: code = ""
+    if code != "":
+        await update_graph(code) # Updates the graph immediately.
+
 
 with ui.row().classes('w-full h-screen no-wrap'):
 
@@ -166,6 +189,8 @@ with ui.row().classes('w-full h-screen no-wrap'):
         ) as settings_panel:
             settings = settingsPage.Settings(on_change=settings_changed)
 
+        settings.set_state(settingsPage.argsToSettings(args))
+
         settings_panel.set_visibility(False)
 
         toggle_button.on_click(toggle_settings)
@@ -182,6 +207,7 @@ with ui.row().classes('w-full h-screen no-wrap'):
 
         with ui.element('div').classes('relative w-full h-full overflow-hidden'):
             
+            # TODO make_graph can fail.
             graph = ui.html(
                 make_graph(codeEditor.initial_text)
             ).props(

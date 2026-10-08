@@ -2,6 +2,95 @@ from dataclasses import dataclass
 from typing import Callable
 
 from nicegui import ui
+import argumentHandling
+
+
+# Note: most of the code in this file is AI-generated.
+# I modified it afterwards as-needed.
+
+def argsToSettings(args):
+    """Take args processed by argumentHandling, and return a SettingsState object.
+    Since some options in SettingsState aren't controlled by the command-line args, these options will use the default values. Thus, this function should only be called when initializing settings in the first place, and then not used thereafter."""
+    sets = SettingsState()
+    sets.percentage = args.p or args.P != None
+    sets.decimal = args.d or args.D != None
+    sets.fraction = args.f or args.F != None or args.b or args.B != None
+    sets.percentage_decimals = args.P
+    sets.decimal_decimals = args.D
+    if args.F != None:   sets.fraction_max_denominator = args.F
+    elif args.B != None: sets.fraction_max_denominator = args.B
+    sets.no_warnings = args.silent
+
+    sets.no_singleton = args.graphNoSingleton
+    sets.weighted_bubbles = args.graphBubbles
+    sets.node_labels = not args.graphNoLabelNodes and not args.graphNoLabels
+    sets.edge_labels = not args.graphNoLabelEdges and not args.graphNoLabels
+
+    sets.red   = args.graphBrightRed or args.graphVibrant
+    sets.green = args.graphBrightGreen or args.graphVibrant
+    sets.blue  = args.graphBrightBlue or args.graphVibrant
+    sets.grey  = args.graphDarkGrey  or args.graphVibrant
+
+    if args.graphColorEdgesDark:
+        sets.color_edges = 'darker than child'
+    elif args.graphColorEdges:
+        sets.color_edges = 'same as child'
+    else:
+        sets.color_edges = 'leave black'
+
+    sets.borders = not args.graphColorBorders
+    if args.graphAutoMarkSimple:
+        sets.automark = 'force simple'
+    elif args.graphAutoMark:
+        sets.automark = 'force full'
+    else:
+        sets.automark = 'auto'
+
+    sets.no_discards = args.DebugNoDiscards
+
+    return sets
+
+def settingsToArgs(sets):
+    """Take a SettingsState obj, and return args from argumentHandling."""
+    args,_ = argumentHandling.parseArgs([],True) # an empty args object.
+
+    if sets.percentage: args.p = True
+    if sets.decimal: args.d = True
+    if sets.fraction: args.f = True
+    args.P = sets.percentage_decimals 
+    args.D = sets.decimal_decimals
+    args.F = sets.fraction_max_denominator
+    args.silent = sets.no_warnings
+
+    args.graphNoSingleton = sets.no_singleton
+    args.graphBubbles = sets.weighted_bubbles
+    args.graphNoLabelNodes = not sets.node_labels
+    args.graphNoLabelEdges = not sets.edge_labels
+
+    args.graphBrightRed = sets.red
+    args.graphBrightGreen = sets.green
+    args.graphBrightBlue = sets.blue
+    args.graphDarkGrey = sets.grey
+
+    if sets.color_edges == 'darker than child':
+        args.graphColorEdgesDark = True
+    elif sets.color_edges == 'same as child':
+        args.graphColorEdges = True
+
+    args.graphColorBorders = not sets.borders 
+    if sets.automark == 'force simple':
+        args.graphAutoMarkSimple = True
+    elif sets.automark == 'force full':
+        args.graphAutoMark = True
+
+    args.DebugNoDiscards = sets.no_discards
+
+    # Bonus, to suppress printing and inputs:
+    args.printn = True
+    # TODO suppress input; make command-line flag for this.
+
+    return args
+
 
 
 @dataclass
@@ -26,21 +115,21 @@ class SettingsState:
     weighted_bubbles: bool = False
     node_labels: bool = True
     edge_labels: bool = True
+    borders: bool = True
 
-    red: str = 'faded'
-    green: str = 'faded'
-    blue: str = 'faded'
-    grey: str = 'light'
+    red: bool = False
+    green: bool = False
+    blue: bool = False
+    grey: bool = False
 
     color_edges: str = 'leave black'
-    borders: bool = True
-    automark: str = 'full'
+    no_discards: bool = False
+    automark: str = 'auto'
 
 
 class Settings:
     def __init__(self, on_change = None):
         self._on_change = on_change
-        self._updating = False
 
         self._create_ui()
 
@@ -146,7 +235,7 @@ class Settings:
         self.no_singleton = self._switch(
             'No singleton',
             False,
-            tooltip="If a node has one arrow going in and one arrow going out, it will erase the node and join the arrows directly.\nThis also disables edge labels."
+            tooltip="If a node has one arrow going in and one arrow going out, it will erase the node and join the arrows directly."
         )
 
         self.weighted_bubbles = self._switch(
@@ -170,35 +259,31 @@ class Settings:
         self.edge_labels = self._switch(
             'Edge labels',
             True,
-            tooltip="disable text labels on edges (the arrows on the graph).\nThis speeds up graph generation.\nThis option is disabled if you use the 'no singleton' option."
+            tooltip="disable text labels on edges (the arrows on the graph).\nThis often makes the arrows straighter, especially in complex graphs.\nThis speeds up graph generation."
         )
 
-        self.red = self._choice(
-            'Red',
-            ['bright', 'faded'],
-            'faded',
-            tooltip="Which shade of red should it use for the nodes where they are guaranteed to eventually 'fail'?"
+        self.red = self._switch(
+            'Bright red',
+            False,
+            tooltip="The color used by nodes where they are guaranteed to eventually 'fail'.\nBright or faded red"
         )
 
-        self.green = self._choice(
-            'Green',
-            ['bright', 'faded'],
-            'faded',
-            tooltip="Which shade of green should it use for the nodes where they are guaranteed to eventually 'pass'?"
+        self.green = self._switch(
+            'Dark green',
+            False,
+            tooltip="The color used by nodes where they are guaranteed to eventually 'pass'.\nDark or faded green"
         )
 
-        self.blue = self._choice(
-            'Blue',
-            ['bright', 'faded'],
-            'faded',
-            tooltip="Which shade of blue should it use for nodes which don't have a guaranteed outcome?"
+        self.blue = self._switch(
+            'Bright blue',
+            False,
+            tooltip="The color used by nodes which don't have a guaranteed outcome.\nBright or faded blue"
         )
 
-        self.grey = self._choice(
-            'Grey',
-            ['dark', 'light'],
-            'light',
-            tooltip="Which shade of grey should it use for nodes which were omitted from the odds calculation because they failed a 'bychance' check?"
+        self.grey = self._switch(
+            'Dark grey',
+            False,
+            tooltip="The color used by nodes which were omitted from the odds calculation because they failed a 'bychance' check.\nLight or dark grey"
         )
 
         self.color_edges = self._choice(
@@ -210,9 +295,17 @@ class Settings:
 
         self.automark = self._choice(
             'Auto-marking',
-            ['full', 'simple'],
-            'full',
-            tooltip="Using commands like:\n! ""hello""\nyou can manually configure the node labels.\nIf you have no '!' commands, it adds in nodes after each line of code containing a 'select' statement.\nIn 'full' mode, it adds the name of the variable and the value.\nIn 'simple' mode, it only adds the value."
+            ['auto', 'force full', 'force simple'],
+            'auto',
+            tooltip="'marks' are how the interpreter decides which nodes should appear in the graph.\nUsing commands like:\n! a + b\nyou can manually configure the node labels and positions.\nAuto: if no '!' commands are included, auto-mark using 'full' mode.\nForce full: after each line containing 'select', add a mark with the var name and value.\nForce simple: after each line containing 'select', add a mark with the var value only."
+        )
+
+        self._section('Misc')
+
+        self.no_discards = self._switch(
+            'No discards',
+            False,
+            tooltip="Normally, variables are set to 'None' the moment the compiler decides their value is no longer needed.\nThis often simplifies the structure of the graph.\nWhen you turn this setting on, it will keep variable values even when they aren't needed.\nThis often makes the graph bigger and less readable, but sometimes it makes graphs more readable instead.\nIf you want to discard variables manually, just use:\nvar_name = None"
         )
 
         self._update_dependencies()
@@ -346,6 +439,7 @@ class Settings:
             color_edges=self.color_edges.value,
             borders=self.borders.value,
             automark=self.automark.value,
+            no_discards=self.no_discards.value,
         )
 
     def set_state(self, state: SettingsState):
@@ -378,6 +472,7 @@ class Settings:
             self.color_edges.value = state.color_edges
             self.borders.value = state.borders
             self.automark.value = state.automark
+            self.no_discards.value = state.no_discards
 
             self._update_dependencies()
 
@@ -389,8 +484,6 @@ class Settings:
     # ----------------------------------------------------------------
 
     def _update_dependencies(self):
-        # "No singleton" disables edge labels.
-        self.edge_labels.enabled = not self.no_singleton.value
 
         # Output precision fields only make sense when their
         # corresponding output format is enabled.
@@ -410,11 +503,11 @@ class Settings:
     # Change callback
     # ----------------------------------------------------------------
 
-    def _changed(self, _=None):
+    async def _changed(self, _=None):
         if self._updating:
             return
 
         self._update_dependencies()
 
         if self._on_change is not None:
-            self._on_change(self.get_state())
+            await self._on_change(self.get_state())

@@ -468,7 +468,7 @@ class AST:
             return this.val.raw
         if this.nodeType == "command" and this.val in ["pass","fail","done"]:
             return "\t"*indent+keyword(this.val.raw)+this.comment(func(this))+"\n"
-        if this.nodeType == "command" and this.val in ["return","print","bychance"]:
+        if this.nodeType == "command" and this.val in ["return","print","bychance","!"]:
             return "\t"*indent+keyword(this.val.raw) + " " + this[0].reconstruct(indent,funcArg) + this.comment(func(this)) + "\n"
         if this.nodeType == "str":
             return col_str(this.val.raw)

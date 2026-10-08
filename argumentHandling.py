@@ -1,6 +1,6 @@
 
 import argparse
-import parser # used for error()
+from parser import error
 
 
 def showArg(helpMessage,show):
@@ -56,7 +56,7 @@ def parseArgs(argList,noFileNeeded=False):
 
     ParserGraph = parser.add_argument_group('Graph options')
     ParserGraph.add_argument('-graph','-g',action='store_true',help=showArg("Make a graph of the results. Uses graphviz graph-to-pdf converter",argsCommon or argsGraph))
-    ParserGraph.add_argument('-graphNoSingleton','-gns',action='store_true',help=showArg("Eliminate any node with a single parent and single child. (Also hides edge labels.)",argsGraph))
+    ParserGraph.add_argument('-graphNoSingleton','-gns',action='store_true',help=showArg("Eliminate any node with a single parent and single child.",argsGraph))
     ParserGraph.add_argument('-graphBubbles','-gb',action='store_true',help=showArg("Use circles instead, which are sized based on their odds of occuring.",argsGraph))
     ParserGraph.add_argument('-graphNoShowFile','-gnf',action='store_true',help=showArg("Don't open the PDF viewer when it finishes.",argsGraph))
 
@@ -111,7 +111,7 @@ def parseArgs(argList,noFileNeeded=False):
     if not (args.p or args.P != None or args.d or args.D != None or args.f or args.F != None or args.b or args.B != None):
         args.f = True
 
-    if noFileNeeded:
+    if noFileNeeded and args.file == None:
         fileS = None
     else:
         if args.file == None:

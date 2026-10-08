@@ -4,20 +4,16 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - GUI version with auto-updating graph:
-	- Make converters between args obj and settings data obj.
-		- The default args should configure from the command-line when the web version is run
-		- the args should be given to the runner when it runs
-		- Each instance of the website needs its own args
+	- Auto-run control: distinguish between auto-run and manual run, track whether it timed out, etc.
+	- TODO test arg <-> settings converter thoroughly
 	- flag-controlled timeouts on execution of code
 		- A second error type, so that the runner can handle it correctly.
-	- flag options in interface
-	- better error message and run indicator
+	- error message and run indicator
 	- Thread-safety and a handler thread.
 	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
-		- Grace period for showing error while typing?
-	- tab key = type a tab.
-	- Flag on WebVersion for loading in file conts from chosen source. (in fact, just use the argument parser I already made, then allow args to be configured inside the website.)
+	- Grace period for re-running code while typing
 	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
-	- block use of INPUT in web version. Maybe block 'print' as well?
+	- block use of INPUT in web version. Block 'print' as well.
+		- Why is 'print' causing an error with printn on? Test.

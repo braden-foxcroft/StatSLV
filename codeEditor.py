@@ -8,6 +8,7 @@ def makeEditor():
     editor = ui.html('''
         <div id="code-editor"></div>
     ''').classes('w-full h-full')
+    
     ui.html("""
         <style>
             #code-editor {
@@ -44,12 +45,16 @@ import {
 import {
     StreamLanguage,
     syntaxHighlighting,
-    HighlightStyle
+    HighlightStyle,
+    indentUnit
 } from "https://esm.sh/@codemirror/language";
 
 import {
     tags
 } from "https://esm.sh/@lezer/highlight";
+
+import { keymap } from "https://esm.sh/@codemirror/view";
+import { indentWithTab } from "https://esm.sh/@codemirror/commands";
 
 // ---------------------------------------------------------
 // Your language's keywords
@@ -160,7 +165,9 @@ const startState = EditorState.create({
                     text: text
                 });
             };
-        })
+        }),
+        indentUnit.of("\t"),
+        keymap.of([indentWithTab]),
     ]
 });
 

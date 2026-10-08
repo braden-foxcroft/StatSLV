@@ -201,7 +201,9 @@ class Graph:
 			# Remove linear node.
 			parent = list(node._parents)[0]
 			child = list(node._children)[0]
-			odds = parent[node]
+			oddsFromParent = parent[node]
+			oddsToChild = node._children[child]
+			odds = oddsFromParent * oddsToChild
 			parent - node
 			node - child
 			parent.link(child,odds)
