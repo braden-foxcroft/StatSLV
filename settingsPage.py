@@ -3,6 +3,7 @@ from typing import Callable
 
 from nicegui import ui
 import argumentHandling
+import asyncio
 
 
 # Note: most of the code in this file is AI-generated.
@@ -26,23 +27,23 @@ def argsToSettings(args):
     sets.node_labels = not args.graphNoLabelNodes and not args.graphNoLabels
     sets.edge_labels = not args.graphNoLabelEdges and not args.graphNoLabels
 
-    sets.red   = args.graphBrightRed or args.graphVibrant
+    sets.red   = args.graphBrightRed   or args.graphVibrant
     sets.green = args.graphBrightGreen or args.graphVibrant
-    sets.blue  = args.graphBrightBlue or args.graphVibrant
-    sets.grey  = args.graphDarkGrey  or args.graphVibrant
+    sets.blue  = args.graphBrightBlue  or args.graphVibrant
+    sets.grey  = args.graphDarkGrey    or args.graphVibrant
 
     if args.graphColorEdgesDark:
         sets.color_edges = 'darker than child'
-    elif args.graphColorEdges:
+    elif args.graphColorEdges or args.graphVibrant:
         sets.color_edges = 'same as child'
     else:
         sets.color_edges = 'leave black'
 
-    sets.borders = not args.graphColorBorders
+    sets.borders = not args.graphColorBorders and not args.graphVibrant
     if args.graphAutoMarkSimple:
-        sets.automark = 'force simple'
+        sets.automark = 'simple'
     elif args.graphAutoMark:
-        sets.automark = 'force full'
+        sets.automark = 'full'
     else:
         sets.automark = 'auto'
 
@@ -78,9 +79,9 @@ def settingsToArgs(sets):
         args.graphColorEdges = True
 
     args.graphColorBorders = not sets.borders 
-    if sets.automark == 'force simple':
+    if sets.automark == 'simple':
         args.graphAutoMarkSimple = True
-    elif sets.automark == 'force full':
+    elif sets.automark == 'full':
         args.graphAutoMark = True
 
     args.DebugNoDiscards = sets.no_discards
@@ -130,8 +131,8 @@ class SettingsState:
 class Settings:
     def __init__(self, on_change = None):
         self._on_change = on_change
-
         self._create_ui()
+        self._updating = False
 
     def _create_ui(self):
         # ------------------------------------------------------------
@@ -295,9 +296,9 @@ class Settings:
 
         self.automark = self._choice(
             'Auto-marking',
-            ['auto', 'force full', 'force simple'],
+            ['auto', 'full', 'simple'],
             'auto',
-            tooltip="'marks' are how the interpreter decides which nodes should appear in the graph.\nUsing commands like:\n! a + b\nyou can manually configure the node labels and positions.\nAuto: if no '!' commands are included, auto-mark using 'full' mode.\nForce full: after each line containing 'select', add a mark with the var name and value.\nForce simple: after each line containing 'select', add a mark with the var value only."
+            tooltip="'marks' are how the interpreter decides which nodes should appear in the graph.\nUsing commands like:\n! a + b\nyou can manually configure the node labels and positions.\nAuto: if no '!' commands are included, auto-mark using 'full' mode.\nFull: after each line containing 'select', add a mark with the var name and value.\nSimple: after each line containing 'select', add a mark with the var value only."
         )
 
         self._section('Misc')
@@ -308,7 +309,7 @@ class Settings:
             tooltip="Normally, variables are set to 'None' the moment the compiler decides their value is no longer needed.\nThis often simplifies the structure of the graph.\nWhen you turn this setting on, it will keep variable values even when they aren't needed.\nThis often makes the graph bigger and less readable, but sometimes it makes graphs more readable instead.\nIf you want to discard variables manually, just use:\nvar_name = None"
         )
 
-        self._update_dependencies()
+        # self._update_dependencies()
 
     # ----------------------------------------------------------------
     # UI creation helpers
@@ -484,7 +485,6 @@ class Settings:
     # ----------------------------------------------------------------
 
     def _update_dependencies(self):
-
         # Output precision fields only make sense when their
         # corresponding output format is enabled.
         self.percentage_decimals_row.set_visibility(
@@ -503,11 +503,10 @@ class Settings:
     # Change callback
     # ----------------------------------------------------------------
 
-    async def _changed(self, _=None):
+    def _changed(self, _=None):
         if self._updating:
             return
 
         self._update_dependencies()
-
         if self._on_change is not None:
-            await self._on_change(self.get_state())
+            asyncio.create_task(self._on_change(self.get_state()))

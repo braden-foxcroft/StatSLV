@@ -4,7 +4,7 @@
 # I manually changed it afterward.
 # Most of the UI code is AI-generated, though.
 
-
+from time import sleep
 import sys
 import argumentHandling
 # Argument handling. This way, the '-h' flag runs faster.
@@ -160,11 +160,10 @@ def toggle_settings():
         toggle_button.props('icon=code')
 
 async def settings_changed(state):
-    try:
+    with settings_panel:
         code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
-    except: code = ""
-    if code != "":
-        await update_graph(code) # Updates the graph immediately.
+        if code != "":
+            await update_graph(code) # Updates the graph immediately.
 
 
 with ui.row().classes('w-full h-screen no-wrap'):
@@ -189,9 +188,8 @@ with ui.row().classes('w-full h-screen no-wrap'):
         ) as settings_panel:
             settings = settingsPage.Settings(on_change=settings_changed)
 
-        settings.set_state(settingsPage.argsToSettings(args))
-
         settings_panel.set_visibility(False)
+        settings.set_state(settingsPage.argsToSettings(args))
 
         toggle_button.on_click(toggle_settings)
 
@@ -225,9 +223,9 @@ with ui.row().classes('w-full h-screen no-wrap'):
                 'absolute top-1 right-1 z-10'
             ).tooltip('Keep full graph visible')
 
-
+ 
+# Make the code editor
 codeEditor.addEditorScript()
-
 
 alreadyRunOnce = False
 async def makeSVGViewer():
@@ -289,7 +287,7 @@ makeEditor()
         ''')
         alreadyRunOnce = True
 
-ui.timer(0.1, makeSVGViewer, once=True)
 
+ui.timer(0.1, makeSVGViewer, once=True)
 
 ui.run(reload=False)
