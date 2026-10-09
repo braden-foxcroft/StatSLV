@@ -5,6 +5,7 @@ from fractions import Fraction
 from collections import defaultdict
 import os
 from contextlib import redirect_stdout, redirect_stderr, contextmanager
+import math
 
 def doImports():
 	global graphviz
@@ -291,7 +292,7 @@ def chooseColor(win,brightRed,brightGreen,brightBlue,darkGrey):
 	if win == -2:
 		if darkGrey == 2: return "black" # Special case
 		if darkGrey: return "darkgrey"
-		return "grey"
+		return "lightgrey"
 	if win == -1:
 		if brightRed == 2: return "darkred"
 		if brightRed: return "red"
@@ -331,7 +332,7 @@ def add_node(dot, node_id, label=None, color="lightgray", odds=1, useCircle=Fals
 	else: fontcolor = "black"
 
 	if useCircle:
-		dot.node(node_id, label=label, fillcolor=color, width=str(float(odds*5)), height=str(float(odds*5)), fixedSize="true", color=borderColor, fontcolor=fontcolor)
+		dot.node(node_id, label=label, fillcolor=color, width=str(math.sqrt(float(odds))*5), height=str(math.sqrt(float(odds))*5), fixedSize="true", color=borderColor, fontcolor=fontcolor)
 	else:
 		dot.node(node_id, label=label, fillcolor=color, color=borderColor, fontcolor=fontcolor)
 

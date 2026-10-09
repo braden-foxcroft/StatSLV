@@ -21,6 +21,7 @@ def argsToSettings(args):
     if args.F != None:   sets.fraction_max_denominator = args.F
     elif args.B != None: sets.fraction_max_denominator = args.B
     sets.no_warnings = args.silent
+    sets.display_ints = args.intAllowed
 
     sets.no_singleton = args.graphNoSingleton
     sets.weighted_bubbles = args.graphBubbles
@@ -54,14 +55,17 @@ def argsToSettings(args):
 def settingsToArgs(sets):
     """Take a SettingsState obj, and return args from argumentHandling."""
     args,_ = argumentHandling.parseArgs([],True) # an empty args object.
+    args.f = False # Since this is on by default.
 
-    if sets.percentage: args.p = True
-    if sets.decimal: args.d = True
-    if sets.fraction: args.f = True
-    args.P = sets.percentage_decimals 
+    if sets.percentage and sets.percentage_decimals == None: args.p = True
+    if sets.decimal and sets.decimal_decimals == None: args.d = True
+    if sets.fraction and sets.fraction_max_denominator == None: args.f = True
+    args.P = sets.percentage_decimals
     args.D = sets.decimal_decimals
     args.F = sets.fraction_max_denominator
+
     args.silent = sets.no_warnings
+    args.intAllowed = sets.display_ints
 
     args.graphNoSingleton = sets.no_singleton
     args.graphBubbles = sets.weighted_bubbles
@@ -92,6 +96,10 @@ def settingsToArgs(sets):
 
     return args
 
+def toIntOrNone(val: float | None):
+    if val == None: return val
+    return int(val)
+
 
 
 @dataclass
@@ -110,6 +118,7 @@ class SettingsState:
     fraction: bool = False
     fraction_max_denominator: int | None = None
     no_warnings: bool = False
+    display_ints: bool = False
 
     # Graph
     no_singleton: bool = False
@@ -127,6 +136,8 @@ class SettingsState:
     no_discards: bool = False
     automark: str = 'auto'
 
+    debounce_timer: int = 500 # This isn't used by args.
+
 
 class Settings:
     def __init__(self, on_change = None):
@@ -141,7 +152,7 @@ class Settings:
 
         self._section('Auto-refresh')
 
-        self.auto_refresh = self._switch(
+        self.auto_refresh,_ = self._switch(
             'Auto-refresh',
             True,
             "Automatically refresh the graph when the code changes.\nYou can manually refresh with the refresh button in the top-left corner of the graph."
@@ -155,7 +166,7 @@ class Settings:
             tooltip="How many seconds before an auto-refresh gives up?\nIf it gives up, the refresh button will show that it timed out."
         )
 
-        self.require_manual_refresh = self._switch(
+        self.require_manual_refresh,_ = self._switch(
             'Require manual refresh after timeout',
             True,
             tooltip="If a graph refresh times out, then auto-refresh will be temporarily disabled until a successful manual refresh."
@@ -176,7 +187,7 @@ class Settings:
 
         self._section('Output')
 
-        self.percentage = self._switch(
+        self.percentage,_ = self._switch(
             'Percentage',
             False,
             tooltip="Show the odds of a 'pass' in percentage form\nEx: 25%"
@@ -188,10 +199,10 @@ class Settings:
         ) = self._integer(
             'How many decimals to round to',
             None,
-            tooltip="2 decimals means 33.33%. -1 decimals means 30%.\nLeaving it blank will round based on python's automatic number display rules."
+            tooltip="1 decimal means 33.3%.\nLeaving it blank will round based on python's automatic number display rules."
         )
 
-        self.decimal = self._switch(
+        self.decimal,_ = self._switch(
             'Decimal',
             False,
             tooltip="Show the odds of a 'pass' in decimal form\nEx: 0.33"
@@ -206,25 +217,31 @@ class Settings:
             tooltip="2 decimals means 0.33.\n5 decimals means 0.33333\n"
         )
 
-        self.fraction = self._switch(
+        self.fraction,self.fraction_label = self._switch(
             'Fraction',
             False,
-            tooltip="Show the odds of a 'pass' in fraction form\nEx: 1/4"
+            tooltip="Show the odds of a 'pass' in fraction form\nEx: 1/4\nIf all options are disabled, this one is the default."
         )
 
         (
             self.fraction_max_denominator,
             self.fraction_max_denominator_row,
         ) = self._integer(
-            'Max denominator size to round to',
+            'Max denominator size',
             None,
             tooltip="How big should the denominator of the fraction be allowed to be?\nIf you set it to '10', then it will properly show fractions like 1/5 or 1/7,\nbut numbers like 2/11 will be rounded to 1/6 instead."
         )
 
-        self.no_warnings = self._switch(
+        self.no_warnings,_ = self._switch(
             'No warnings',
             False,
-            tooltip="Don't show messages like:\n- no result\nor\n- converted 'done' cases to 'pass'.\nIf the output box is completely empty, it will automatically hide."
+            tooltip="Don't show messages like:\n- no result\nor\n- converted 'done' cases to 'pass'.\nIf the output box is completely empty, it will automatically hide.\nErrors will always show, though."
+        )
+
+        self.display_ints,_ = self._switch(
+            'Display fractions as integers whenever possible',
+            False,
+            tooltip="In the output of the program, display whole-numbered fractions like '5/1' as '5' instead."
         )
 
         # ------------------------------------------------------------
@@ -233,55 +250,55 @@ class Settings:
 
         self._section('Graph')
 
-        self.no_singleton = self._switch(
+        self.no_singleton,_ = self._switch(
             'No singleton',
             False,
             tooltip="If a node has one arrow going in and one arrow going out, it will erase the node and join the arrows directly."
         )
 
-        self.weighted_bubbles = self._switch(
+        self.weighted_bubbles,_ = self._switch(
             'Weighted bubbles',
             False,
             tooltip="Show the nodes as circles, where the size of the circle is approximately based on the odds of it occuring."
         )
 
-        self.borders = self._switch(
+        self.borders,_ = self._switch(
             'Borders',
             True,
             tooltip="Should nodes have borders?\nIf disabled, this speeds up graph generation."
         )
 
-        self.node_labels = self._switch(
+        self.node_labels,_ = self._switch(
             'Node labels',
             True,
             tooltip="disable text labels on nodes (the ovals on the graph).\nThis speeds up graph generation."
         )
 
-        self.edge_labels = self._switch(
+        self.edge_labels,_ = self._switch(
             'Edge labels',
             True,
             tooltip="disable text labels on edges (the arrows on the graph).\nThis often makes the arrows straighter, especially in complex graphs.\nThis speeds up graph generation."
         )
 
-        self.red = self._switch(
+        self.red,_ = self._switch(
             'Bright red',
             False,
             tooltip="The color used by nodes where they are guaranteed to eventually 'fail'.\nBright or faded red"
         )
 
-        self.green = self._switch(
+        self.green,_ = self._switch(
             'Dark green',
             False,
             tooltip="The color used by nodes where they are guaranteed to eventually 'pass'.\nDark or faded green"
         )
 
-        self.blue = self._switch(
+        self.blue,_ = self._switch(
             'Bright blue',
             False,
             tooltip="The color used by nodes which don't have a guaranteed outcome.\nBright or faded blue"
         )
 
-        self.grey = self._switch(
+        self.grey,_ = self._switch(
             'Dark grey',
             False,
             tooltip="The color used by nodes which were omitted from the odds calculation because they failed a 'bychance' check.\nLight or dark grey"
@@ -303,10 +320,19 @@ class Settings:
 
         self._section('Misc')
 
-        self.no_discards = self._switch(
+        self.no_discards,_ = self._switch(
             'No discards',
             False,
             tooltip="Normally, variables are set to 'None' the moment the compiler decides their value is no longer needed.\nThis often simplifies the structure of the graph.\nWhen you turn this setting on, it will keep variable values even when they aren't needed.\nThis often makes the graph bigger and less readable, but sometimes it makes graphs more readable instead.\nIf you want to discard variables manually, just use:\nvar_name = None"
+        )
+
+        (
+            self.debounce_timer,
+            self.debounce_timer_row,
+        ) = self._integer(
+            'Debounce timer (ms)',
+            500,
+            tooltip="How many milliseconds should the editor go without further typing before it auto-runs the code?\n0 or an empty box means 'instant'\n500 means 1/2 a second"
         )
 
         # self._update_dependencies()
@@ -338,12 +364,12 @@ class Settings:
     def _switch(self, label: str, value: bool, tooltip : str):
         with ui.row().classes('w-full items-center px-3'):
             switch = ui.switch(value=value)
-            ui.label(label).classes('flex-grow')
+            label = ui.label(label).classes('flex-grow')
             self._help_button(tooltip)
 
         switch.on_value_change(self._changed)
 
-        return switch
+        return switch,label
 
     def _number(
         self,
@@ -420,12 +446,13 @@ class Settings:
             manual_refresh_timeout=self.manual_refresh_timeout.value,
 
             percentage=self.percentage.value,
-            percentage_decimals=self.percentage_decimals.value,
+            percentage_decimals=toIntOrNone(self.percentage_decimals.value),
             decimal=self.decimal.value,
-            decimal_decimals=self.decimal_decimals.value,
+            decimal_decimals=toIntOrNone(self.decimal_decimals.value),
             fraction=self.fraction.value,
-            fraction_max_denominator=self.fraction_max_denominator.value,
+            fraction_max_denominator=toIntOrNone(self.fraction_max_denominator.value),
             no_warnings=self.no_warnings.value,
+            display_ints=self.display_ints.value,
 
             no_singleton=self.no_singleton.value,
             weighted_bubbles=self.weighted_bubbles.value,
@@ -441,6 +468,7 @@ class Settings:
             borders=self.borders.value,
             automark=self.automark.value,
             no_discards=self.no_discards.value,
+            debounce_timer=toIntOrNone(self.debounce_timer.value),
         )
 
     def set_state(self, state: SettingsState):
@@ -459,6 +487,7 @@ class Settings:
             self.fraction.value = state.fraction
             self.fraction_max_denominator.value = state.fraction_max_denominator
             self.no_warnings.value = state.no_warnings
+            self.display_ints.value = state.display_ints
 
             self.no_singleton.value = state.no_singleton
             self.weighted_bubbles.value = state.weighted_bubbles
@@ -473,7 +502,9 @@ class Settings:
             self.color_edges.value = state.color_edges
             self.borders.value = state.borders
             self.automark.value = state.automark
+
             self.no_discards.value = state.no_discards
+            self.debounce_timer.value = state.debounce_timer
 
             self._update_dependencies()
 
@@ -485,6 +516,7 @@ class Settings:
     # ----------------------------------------------------------------
 
     def _update_dependencies(self):
+
         # Output precision fields only make sense when their
         # corresponding output format is enabled.
         self.percentage_decimals_row.set_visibility(
@@ -509,4 +541,4 @@ class Settings:
 
         self._update_dependencies()
         if self._on_change is not None:
-            asyncio.create_task(self._on_change(self.get_state()))
+            asyncio.create_task(self._on_change())

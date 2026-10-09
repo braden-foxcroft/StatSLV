@@ -597,7 +597,7 @@ def listSub(a,b):
 def strFrac(res, args,forceNoColor=False):
     """Returns a Fraction as a colored fraction str."""
     if not isinstance(res,Fraction):
-        error(f"printFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
+        raise Exception(f"strFrac expected a Fraction, got {yellow(type(res))} {red(res)} instead.")
     if args.intAllowed and res.is_integer():
         return col_int(int(res))
     if forceNoColor:
@@ -618,7 +618,7 @@ def padEven(a,b):
         a,"0"+b
     return "0"+a,b
 
-def printNiceFrac(res):
+def makeNiceFrac(res):
     """Print a Fraction as a multi-line fraction."""
     num = res.numerator
     den = res.denominator
@@ -629,12 +629,13 @@ def printNiceFrac(res):
     print("\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4)))
     
     
-def showAgg(res,args):
-    # Takes a dict (str -> odds). Prints it line-by-line, with each line having the format:
-    # (odds) item 
+def makeAgg(res,args):
+    """Takes a dict (str -> odds). Converts it into a str line-by-line, with each line having the format:
+    (odds) item"""
     keys = list(res)
     keys.sort(key=stringSortKey)
     maxLen = 0
+    resStr = ""
     for key in keys:
         maxLen = max(maxLen,len(strFrac(res[key],args,True)))
     for key in keys:
@@ -642,50 +643,84 @@ def showAgg(res,args):
         sfc = strFrac(res[key],args,False)
         if len(sf) < maxLen:
             sfc = sfc + " " * (maxLen - len(sf))
-        print(f"({sfc}) {str(key)}")
+        resStr = lineAppend(resStr,f"({sfc}) {str(key)}")
+    return resStr
 
-    
 
-def showResult(res,args):
-    """Shows the result (Fraction object) using the global 'args' variable to format it correctly.
-    May print multiple lines if multiple argument flags are provided."""
+def lineAppend(st,line):
+    """Takes a str and another str, and appends them, using a linebreak if the first str was non-empty."""
+    if st == "": return line
+    return st + "\n" + line
+
+def makeResult(res,args):
+    """Makes a str representation of the result (Fraction object) using the global 'args' variable to format it correctly.
+    May return a multi-line str if multiple argument flags are provided."""
+    resStr = ""
     if args.p:
-        print(col_int(floatOrInt(res*100)),"%",sep="")
+        resStr = lineAppend(resStr,col_int(floatOrInt(res*100))+"%")
     if args.P != None:
-        print(col_int(round(floatOrInt(res*100),args.P)),"%",sep="")
+        resStr = lineAppend(resStr,col_int(round(floatOrInt(res*100),args.P))+"%")
     if args.d:
-        print(col_int(floatOrInt(res)))
+        resStr = lineAppend(resStr,col_int(floatOrInt(res)))
     if args.D:
-        print(col_int(round(floatOrInt(res),args.D)))
+        resStr = lineAppend(resStr,col_int(round(floatOrInt(res),args.D)))
     if args.f:
-        print(strFrac(res,args))
+        resStr = lineAppend(resStr,strFrac(res,args))
     if args.F != None:
-        print(strFrac(res.limit_denominator(args.F),args))
+        resStr = lineAppend(resStr,strFrac(res.limit_denominator(args.F),args))
     if args.b:
-        printNiceFrac(res)
+        resStr = lineAppend(resStr,makeNiceFrac(res))
     if args.B != None:
-        printNiceFrac(res.limit_denominator(args.B))
+        resStr = lineAppend(resStr,makeNiceFrac(res.limit_denominator(args.B)))
+    return resStr
 
 
-def generateRes(d):
-    """Takes the Data object, returns a string with the results. Designed to never throw an error."""
+def generateRes(d,args):
+    """Takes the Data object, returns a string with the results and bool success.
+    An empty str means no result."""
     if list(d._returns) == [""] or list(d._returns) == [None]:
-        return ""
-    if list(d._returns):
-        return "error: returns do not automatically aggregate in GUI mode (Unless I implement it later)"
-    if d._done and d._pass and d._fail:
-        return "Error:\nCannot use 'pass', 'fail', and 'done' in the same file. (if execution reaches the end of the file, this is considered a 'done')"
-    if d._done:
-        if d._pass:
-            d._fail = d._done
-        elif d._fail:
-            d._pass = d._done
+        return "",True
+    elif d._returns:
+        if d._done or d._pass or d._fail:
+            return "If 'return' is present, pass/fail/done cannot be used!\n(If you want a path to finish without being included in the total, use 'bychance 0' instead.)",False
+        returns = d._returns
+        allNums = True
+        for r in returns:
+            if not isinstance(r,int) and not isinstance(r,Fraction):
+                allNums = False
+        if allNums:
+            res = Frac(0)
+            odds = Frac(0)
+            for val in returns:
+                res += returns[val] * val
+                odds += returns[val]
+            res = res / odds
+            return makeResult(res,args),True
         else:
-            return "no result. Use 'pass' and 'fail' inside the program to get the odds of a pass"
-        d._done = 0
-    if d._pass == 0 and d._fail == 0: return "no result. check your 'bychance' statements."
-
-    return str(Frac(d._pass,d._pass+d._fail)) # TODO add in '/n percentage', make everything here nicer.
+            res = defaultdict(Fraction)
+            for key in returns:
+                res[(key)] += returns[key]
+            return makeAgg(res,args),True
+    else:
+        resStr = ""
+        if d._done != 0:
+            if d._pass and not d._fail:
+                if not args.silent:
+                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {red('fail')}.\nThe graph may render incorrectly (if applicable)")
+                d._done,d._fail = Frac(0,1),d._done
+            elif d._fail and not d._pass:
+                if not args.silent:
+                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {green('pass')}\nThe graph may render incorrectly (if applicable)")
+                d._done,d._pass = Frac(0,1),d._done
+            elif d._fail and d._pass:
+                return f"The code mixes the use of {green('pass')}, {red('fail')}, and {yellow('done')}.\n({yellow('done')} is insterted automatically after the final line of the code, to catch any cases where the code doesn't {green('pass')} or {red('fail')} first.)\nPlease make sure that your code always finishes with a {green('pass')} or {red('fail')}!",False
+        if d._pass + d._fail == 0:
+            if not args.silent: resStr = lineAppend(resStr,green('No result.'))
+        else:
+            res = Frac(d._pass,d._pass+d._fail)
+            resStr = lineAppend(resStr,makeResult(res,args))
+        return resStr,True
+    raise Exception(f"Reached end of generateRes({d},{args}).\nThis should never happen.")
 
 
 def runInternal(fileCont,args):
@@ -719,15 +754,16 @@ def runInternal(fileCont,args):
         autoMark = int(not marks)
 
     contRes = runBlock(ast,varLookup,d,c,autoMark)
-    
-    # TODO manage the result: return values aren't useful, only need to support pass/fail    
-    strRes = generateRes(d)
 
+    # Generate the results.
+    resStr,success = generateRes(d,args)
+    if not success: return resStr,None # An error message.
+
+    # Only generate the graph if the result was a non-error.
     graphRes = makeGraph(args,True)
 
-    # TODO make sure this function works correctly
 
-    return contRes, graphRes
+    return resStr, graphRes
 
 def makeGraph(args,outputAsStr=False):
 
@@ -799,45 +835,9 @@ def main():
 
     contRes = runBlock(ast,varLookup,d,c,autoMark)
 
-    if list(d._returns) == [""] or list(d._returns) == [None]:
-        pass
-    elif d._returns:
-        if d._done or d._pass or d._fail:
-            error("If 'return' is present, pass/fail/done cannot be used!\n(If you want a path to finish without returning, use 'bychance 0' instead.)")
-        returns = d._returns
-        allNums = True
-        for r in returns:
-            if not isinstance(r,int) and not isinstance(r,Fraction):
-                allNums = False
-        if allNums:
-            res = Frac(0)
-            odds = Frac(0)
-            for val in returns:
-                res += returns[val] * val
-                odds += returns[val]
-            res = res / odds
-            showResult(res,args)
-        else:
-            res = defaultdict(Fraction)
-            for key in returns:
-                res[(key)] += returns[key]
-            showAgg(res,args)
-    else:
-        if d._done != 0:
-            if d._pass and not d._fail:
-                if not args.silent: print(f"All {yellow('unmarked')} results marked as {red('fail')}")
-                d._done,d._fail = Frac(0,1),d._done
-            elif d._fail and not d._pass:
-                if not args.silent: print(f"All {yellow('unmarked')} results marked as {green('pass')}")
-                d._done,d._pass = Frac(0,1),d._done
-            elif d._fail and d._pass:
-                error(f"The code mixes the use of {green('pass')}, {red('fail')}, and {yellow('done')}.\n({yellow('done')} is insterted automatically after the final line of the code, to catch any cases where the code doesn't {green('pass')} or {red('fail')} first.)\nPlease make sure that your code always finishes with a {green('pass')} or {red('fail')}!")
-        if d._pass + d._fail == 0:
-            if not args.silent:
-                print(green('No result.'))
-        else:
-            res = Frac(d._pass,d._pass+d._fail)
-            showResult(res,args)
+    resStr,success = generateRes(d,args)
+    if not success: error(resStr)
+    if resStr != "": print(resStr)
 
 
     if args.graph:

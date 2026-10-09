@@ -150,6 +150,8 @@ const highlightStyle = HighlightStyle.define([
 // ---------------------------------------------------------
 // Create editor
 // ---------------------------------------------------------
+let debounceTimer;
+window.debounceTimeout = 500;
 
 const startState = EditorState.create({
     doc: ''' + json.dumps(initial_text) + ''',
@@ -157,14 +159,19 @@ const startState = EditorState.create({
         basicSetup,
         language,
         syntaxHighlighting(highlightStyle),
+        EditorView.lineWrapping,
 
         EditorView.updateListener.of((update) => {
             if (update.docChanged) {
-                const text = update.state.doc.toString();
-                emitEvent('code_changed', {
-                    text: text
-                });
-            };
+                clearTimeout(debounceTimer);
+
+                debounceTimer = setTimeout(() => {
+                    const text = update.state.doc.toString();
+                    emitEvent('code_changed', {
+                        text: text
+                    });
+                }, window.debounceTimeout);
+            }
         }),
         indentUnit.of("\t"),
         keymap.of([indentWithTab]),

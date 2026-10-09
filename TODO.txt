@@ -6,12 +6,13 @@
 	- Auto-run control: distinguish between auto-run and manual run, track whether it timed out, etc.
 	- flag-controlled timeouts on execution of code
 		- A second error type, so that the runner can handle it correctly.
-	- error message and run indicator
+	- run indicator button
 	- Thread-safety and a handler thread.
 	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
-	- Grace period for re-running code while typing
 	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
 	- block use of INPUT in web version. Block 'print' as well.
 		- Why is 'print' causing an error with printn on? Test.
+	- allow graph output to be disabled in settings.
+	- add ability to show only 1 panel (either left or right) using buttons

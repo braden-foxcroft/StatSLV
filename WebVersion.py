@@ -4,10 +4,9 @@
 # I manually changed it afterward.
 # Most of the UI code is AI-generated, though.
 
-from time import sleep
 import sys
 import argumentHandling
-# Argument handling. This way, the '-h' flag runs faster.
+# Argument handling at the top. This way, the '-h' flag runs faster.
 args,fileS = argumentHandling.parseArgs(sys.argv[1:],True)
 args.printn = True # Block print statements.
 
@@ -20,6 +19,7 @@ except:
     print("Missing module 'nicegui'. To install:\n\tpip install nicegui")
     exit(1)
 
+from time import sleep
 import asyncio
 import main
 import traceback
@@ -35,29 +35,22 @@ if fileS != None: # Use file contents if provided.
 
 def make_graph(source: str) -> str:
     """
-    Take source code and return a Graphviz SVG."""
+    Take source code, return a str result and a Graphviz SVG.
+    Either or both return values can be None."""
     try:
         currentArgs = settingsPage.settingsToArgs(settings.get_state())
     except:
         # This will trigger if the settings haven't been set up yet.
         currentArgs = args # The args parsed by the command-line
     try:
-        res, graph = main.runInternal(source,currentArgs)
+        res, graphVal = main.runInternal(source,currentArgs)
     except ExitException as e:
-        return None # TODO errors unhandled
-        return e.customMessage
-    except Exception as e:
-        return None # TODO errors unhandled
-        e = traceback.format_exc()
-        return f"""
-        <pre style="
-            color: #c00;
-            padding: 1em;
-            white-space: pre-wrap;
-        ">{e}</pre>
-        """
+        return e.customMessage, None
+    except Exception: # This isn't normally supposed to happen.
+        errorTrace = traceback.format_exc()
+        return errorTrace, None
     
-    return graph
+    return res, graphVal
 
 
 # ------------------------------------------------------------
@@ -74,8 +67,12 @@ async def update_graph(e):
     else:
         source = e.args["text"]
 
-    svgVal = await asyncio.to_thread(make_graph, source)
-    if svgVal == None: return
+    resText,svgVal = await asyncio.to_thread(make_graph, source)
+
+    if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
+
+    if svgVal == None: return # Don't modify the graph if there was an error.
+
     await ui.run_javascript('''
             if (window.graphViewer && !window.graphFitted) {
                 window.graphZoom = graphViewer.getZoom();
@@ -151,19 +148,44 @@ def toggle_settings():
     if settings_panel.visible:
         settings_panel.set_visibility(False)
         editor_panel.set_visibility(True)
+        results_panel.set_visibility(True)
         title.text = 'Source Code'
         toggle_button.props('icon=settings')
     else:
-        editor_panel.set_visibility(False)
         settings_panel.set_visibility(True)
+        editor_panel.set_visibility(False)
+        results_panel.set_visibility(False)
         title.text = 'Settings'
         toggle_button.props('icon=code')
 
-async def settings_changed(state):
+async def settings_changed():
     with settings_panel:
+        timer_val = settings.get_state().debounce_timer
+        try: timer_val = int(timer_val)
+        except: timer_val = 0
+        if timer_val < 0: timer_val = -timer_val # abs value
+        await ui.run_javascript(f'window.debounceTimeout = {timer_val}')
         code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
         if code != "":
             await update_graph(code) # Updates the graph immediately.
+
+def set_message(text: str, error: bool = False):
+    with results_panel:
+        if not text:
+            results_panel.set_text('')
+            results_panel.style('display: none;')
+            return
+
+        if error: color = '#FF5555' # red
+        else: color = 'white'
+        
+        font_size = '1.1rem' if not error else '0.875rem'
+        
+        
+        results_panel.set_text(text)
+        results_panel.style(
+            f'display: block; color: {color}; font-size: {font_size};'
+        )
 
 
 with ui.row().classes('w-full h-screen no-wrap'):
@@ -179,7 +201,7 @@ with ui.row().classes('w-full h-screen no-wrap'):
             ).props('flat round dense').classes('ml-auto')
 
         with ui.element('div').classes(
-            'w-full flex-grow overflow-hidden'
+            'w-full flex-1 min-h-0 overflow-auto'
         ) as editor_panel:
             editor = codeEditor.makeEditor()
 
@@ -187,6 +209,11 @@ with ui.row().classes('w-full h-screen no-wrap'):
             'w-full flex-grow overflow-auto'
         ) as settings_panel:
             settings = settingsPage.Settings(on_change=settings_changed)
+
+        results_panel = ui.label().classes(
+            'w-full whitespace-pre-wrap break-words rounded p-2 shrink-0 font-mono bg-black dark:bg-gray-200 mb-2'
+        )
+
 
         settings_panel.set_visibility(False)
         settings.set_state(settingsPage.argsToSettings(args))
@@ -207,7 +234,7 @@ with ui.row().classes('w-full h-screen no-wrap'):
             
             # TODO make_graph can fail.
             graph = ui.html(
-                make_graph(codeEditor.initial_text)
+                make_graph("")[1] # An empty svg.
             ).props(
                 'id=graph-container'
             ).classes(
@@ -222,6 +249,7 @@ with ui.row().classes('w-full h-screen no-wrap'):
             ).classes(
                 'absolute top-1 right-1 z-10'
             ).tooltip('Keep full graph visible')
+
 
  
 # Make the code editor
@@ -286,8 +314,8 @@ fitGraph()
 makeEditor()
         ''')
         alreadyRunOnce = True
+        await update_graph(codeEditor.initial_text)
 
-
-ui.timer(0.1, makeSVGViewer, once=True)
+ui.timer(0.2, makeSVGViewer, once=True)
 
 ui.run(reload=False)
