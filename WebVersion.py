@@ -57,265 +57,271 @@ def make_graph(source: str) -> str:
 # GUI state
 # ------------------------------------------------------------
 
-graph = None
 
-async def update_graph(e):
-    """Regenerate the graph after the user stops typing."""
+@ui.page("/")
+def main_page():
 
-    if isinstance(e,str):
-        source = str(e)
-    else:
-        source = e.args["text"]
+    graph = None
 
-    resText,svgVal = await asyncio.to_thread(make_graph, source)
 
-    if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
+    async def update_graph(e):
+        """Regenerate the graph after the user stops typing."""
 
-    if svgVal == None: return # Don't modify the graph if there was an error.
+        if isinstance(e,str):
+            source = str(e)
+        else:
+            source = e.args["text"]
 
-    await ui.run_javascript('''
-            if (window.graphViewer && !window.graphFitted) {
-                window.graphZoom = graphViewer.getZoom();
-                window.graphPan = graphViewer.getPan();
-                document.querySelector('#graph-container').style.visibility = 'hidden';
+        resText,svgVal = await asyncio.to_thread(make_graph, source)
+
+        if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
+
+        if svgVal == None: return # Don't modify the graph if there was an error.
+
+        await ui.run_javascript('''
+                if (window.graphViewer && !window.graphFitted) {
+                    window.graphZoom = graphViewer.getZoom();
+                    window.graphPan = graphViewer.getPan();
+                    document.querySelector('#graph-container').style.visibility = 'hidden';
+                }
+            ''')
+        
+        graph.content = svgVal
+
+        await makeSVGViewer()
+
+        await ui.run_javascript('''
+            if (window.graphFitted) {
+                graphFitted = false
+                graphViewer.updateBBox();
+                fitGraph()
+            } else if (window.graphViewer) {
+                graphViewer.updateBBox();
+
+                if (window.graphZoom !== undefined) {
+                    graphViewer.zoom(graphZoom);
+                    graphViewer.pan(graphPan);
+                }
+                document.querySelector('#graph-container').style.visibility = 'visible';
             }
         ''')
-    
-    graph.content = svgVal
 
-    await makeSVGViewer()
 
-    await ui.run_javascript('''
-        if (window.graphFitted) {
-            graphFitted = false
-            graphViewer.updateBBox();
-            fitGraph()
-        } else if (window.graphViewer) {
-            graphViewer.updateBBox();
 
-            if (window.graphZoom !== undefined) {
-                graphViewer.zoom(graphZoom);
-                graphViewer.pan(graphPan);
-            }
-            document.querySelector('#graph-container').style.visibility = 'visible';
+    # ------------------------------------------------------------
+    # Page layout
+    # ------------------------------------------------------------
+
+
+    ui.page_title('StatSLV')
+
+    ui.add_head_html('''
+    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+    ''')
+
+    ui.add_css('''
+        #graph-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #graph-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .nicegui-content {
+            padding-top: 0px;
+            padding-bottom: 0px;
+            box-sizing: border-box;
+        }
+
+        #code-editor {
+        width: 100%;
+        height: 100%;
+    }
+
+        #code-editor .cm-editor {
+            height: 100% !important;
+        }
+
+        #code-editor .cm-scroller {
+            overflow: auto !important;
         }
     ''')
 
+    def toggle_settings():
+        if settings_panel.visible:
+            settings_panel.set_visibility(False)
+            editor_panel.set_visibility(True)
+            results_panel.set_visibility(True)
+            title.text = 'Source Code'
+            toggle_button.props('icon=settings')
+        else:
+            settings_panel.set_visibility(True)
+            editor_panel.set_visibility(False)
+            results_panel.set_visibility(False)
+            title.text = 'Settings'
+            toggle_button.props('icon=code')
 
+    async def settings_changed():
+        with settings_panel:
+            timer_val = settings.get_state().debounce_timer
+            try: timer_val = int(timer_val)
+            except: timer_val = 0
+            if timer_val < 0: timer_val = -timer_val # abs value
+            await ui.run_javascript(f'window.debounceTimeout = {timer_val}')
+            code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
+            if code != "":
+                await update_graph(code) # Updates the graph immediately.
 
-# ------------------------------------------------------------
-# Page layout
-# ------------------------------------------------------------
+    def set_message(text: str, error: bool = False):
+        with results_panel:
+            if not text:
+                results_panel.set_text('')
+                results_panel.style('display: none;')
+                return
 
-ui.page_title('Code Graph Explorer')
-
-ui.add_head_html('''
-<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
-''')
-
-ui.add_css('''
-    #graph-container {
-        width: 100%;
-        height: 100%;
-    }
-
-    #graph-container svg {
-        width: 100%;
-        height: 100%;
-    }
-
-    .nicegui-content {
-        padding-top: 0px;
-        padding-bottom: 0px;
-        box-sizing: border-box;
-    }
-
-    #code-editor {
-    width: 100%;
-    height: 100%;
-}
-
-    #code-editor .cm-editor {
-        height: 100% !important;
-    }
-
-    #code-editor .cm-scroller {
-        overflow: auto !important;
-    }
-''')
-
-def toggle_settings():
-    if settings_panel.visible:
-        settings_panel.set_visibility(False)
-        editor_panel.set_visibility(True)
-        results_panel.set_visibility(True)
-        title.text = 'Source Code'
-        toggle_button.props('icon=settings')
-    else:
-        settings_panel.set_visibility(True)
-        editor_panel.set_visibility(False)
-        results_panel.set_visibility(False)
-        title.text = 'Settings'
-        toggle_button.props('icon=code')
-
-async def settings_changed():
-    with settings_panel:
-        timer_val = settings.get_state().debounce_timer
-        try: timer_val = int(timer_val)
-        except: timer_val = 0
-        if timer_val < 0: timer_val = -timer_val # abs value
-        await ui.run_javascript(f'window.debounceTimeout = {timer_val}')
-        code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
-        if code != "":
-            await update_graph(code) # Updates the graph immediately.
-
-def set_message(text: str, error: bool = False):
-    with results_panel:
-        if not text:
-            results_panel.set_text('')
-            results_panel.style('display: none;')
-            return
-
-        if error: color = '#FF5555' # red
-        else: color = 'white'
-        
-        font_size = '1.1rem' if not error else '0.875rem'
-        
-        
-        results_panel.set_text(text)
-        results_panel.style(
-            f'display: block; color: {color}; font-size: {font_size};'
-        )
-
-
-with ui.row().classes('w-full h-screen no-wrap'):
-
-    # Left side: editor
-    with ui.column().classes('w-1/2 h-full pt-3'):
-
-        with ui.row().classes('w-full items-center px-2'):
-            title = ui.label('Source Code').classes('text-lg font-bold')
-
-            toggle_button = ui.button(
-                icon='settings'
-            ).props('flat round dense').classes('ml-auto')
-
-        with ui.element('div').classes(
-            'w-full flex-1 min-h-0 overflow-auto'
-        ) as editor_panel:
-            editor = codeEditor.makeEditor()
-
-        with ui.element('div').classes(
-            'w-full flex-grow overflow-auto'
-        ) as settings_panel:
-            settings = settingsPage.Settings(on_change=settings_changed)
-
-        results_panel = ui.label().classes(
-            'w-full whitespace-pre-wrap break-words rounded p-2 shrink-0 font-mono bg-black dark:bg-gray-200 mb-2'
-        )
-
-
-        settings_panel.set_visibility(False)
-        settings.set_state(settingsPage.argsToSettings(args))
-
-        toggle_button.on_click(toggle_settings)
-
-    
-    ui.on('code_changed', update_graph)
-
-    # Right side: graph
-    with ui.column().classes('w-1/2 h-98/100 pt-3'):
-
-        ui.label('Graph').classes(
-            'text-lg font-bold p-2'
-        )
-
-        with ui.element('div').classes('relative w-full h-full overflow-hidden'):
+            if error: color = '#FF5555' # red
+            else: color = 'white'
             
-            # TODO make_graph can fail.
-            graph = ui.html(
-                make_graph("")[1] # An empty svg.
-            ).props(
-                'id=graph-container'
-            ).classes(
-                'w-full h-full border border-black'
+            font_size = '1.1rem' if not error else '0.875rem'
+            
+            
+            results_panel.set_text(text)
+            results_panel.style(
+                f'display: block; color: {color}; font-size: {font_size};'
             )
 
-            ui.button(
-                icon='fit_screen',
-                on_click=lambda: ui.run_javascript('fitGraph()')
-            ).props(
-                'flat round dense id="fullsize-button"'
-            ).classes(
-                'absolute top-1 right-1 z-10'
-            ).tooltip('Keep full graph visible')
+
+    with ui.row().classes('w-full h-screen no-wrap'):
+
+        # Left side: editor
+        with ui.column().classes('w-1/2 h-full pt-3'):
+
+            with ui.row().classes('w-full items-center px-2'):
+                title = ui.label('Source Code').classes('text-lg font-bold')
+
+                toggle_button = ui.button(
+                    icon='settings'
+                ).props('flat round dense').classes('ml-auto')
+
+            with ui.element('div').classes(
+                'w-full flex-1 min-h-0 overflow-auto'
+            ) as editor_panel:
+                editor = codeEditor.makeEditor()
+
+            with ui.element('div').classes(
+                'w-full flex-grow overflow-auto'
+            ) as settings_panel:
+                settings = settingsPage.Settings(on_change=settings_changed)
+
+            results_panel = ui.label().classes(
+                'w-full whitespace-pre-wrap break-words rounded p-2 shrink-0 font-mono bg-black dark:bg-gray-200 mb-2'
+            )
 
 
- 
-# Make the code editor
-codeEditor.addEditorScript()
+            settings_panel.set_visibility(False)
+            settings.set_state(settingsPage.argsToSettings(args))
 
-alreadyRunOnce = False
-async def makeSVGViewer():
-    global alreadyRunOnce
-    await ui.run_javascript('''
-        const svg = document.querySelector('#graph-container svg');
+            toggle_button.on_click(toggle_settings)
 
-        if (svg) {
-            window.graphViewer = svgPanZoom(svg, {
-                zoomEnabled: true,
-                panEnabled: true,
-                mouseWheelZoomEnabled: true,
-                dblClickZoomEnabled: true,
-                controlIconsEnabled: false,
-                fit: true,
-                center: true,
-            });
+        
+        ui.on('code_changed', update_graph)
 
-            graphViewer.setOnPan(() => {
-                if (graphFitted) {
-                    graphFitted = false;
-                    fitButton.style.display = '';
-                }
-            });
+        # Right side: graph
+        with ui.column().classes('w-1/2 h-98/100 pt-3'):
 
-            graphViewer.setOnZoom(() => {
-                if (graphFitted) {
-                    graphFitted = false;
-                    fitButton.style.display = '';
-                }
-            });
-        }
-    ''')
-    if not alreadyRunOnce:
+            ui.label('Graph').classes(
+                'text-lg font-bold p-2'
+            )
+
+            with ui.element('div').classes('relative w-full h-full overflow-hidden'):
+                
+                graph = ui.html(
+                    "Please wait for the graph to be created."
+                ).props(
+                    'id=graph-container'
+                ).classes(
+                    'w-full h-full border border-black'
+                )
+
+                ui.button(
+                    icon='fit_screen',
+                    on_click=lambda: ui.run_javascript('fitGraph()')
+                ).props(
+                    'flat round dense id="fullsize-button"'
+                ).classes(
+                    'absolute top-1 right-1 z-10'
+                ).tooltip('Keep full graph visible')
+
+
+     
+    # Make the code editor
+    codeEditor.addEditorScript()
+
+    async def makeSVGViewer():
         await ui.run_javascript('''
-window.fitButton = document.querySelector('#fullsize-button');
-window.graphFitted = false;
-const observer = new ResizeObserver(() => {
-    graphViewer.resize();
-    if (graphFitted) {
-        fitGraph()
-    }
-});
+            const svg = document.querySelector('#graph-container svg');
 
-observer.observe(document.getElementById('graph-container'));
+            if (svg) {
+                window.graphViewer = svgPanZoom(svg, {
+                    zoomEnabled: true,
+                    panEnabled: true,
+                    mouseWheelZoomEnabled: true,
+                    dblClickZoomEnabled: true,
+                    controlIconsEnabled: false,
+                    fit: true,
+                    center: true,
+                });
 
-window.fitGraph = function() {
-    window.graphFitted = false;
-    graphViewer.fit();
-    graphViewer.center();
-    window.fitButton.style.display = 'none';
-    window.graphFitted = true;
-};
+                graphViewer.setOnPan(() => {
+                    if (graphFitted) {
+                        graphFitted = false;
+                        fitButton.style.display = '';
+                    }
+                });
 
-fitButton.addEventListener('press',fitGraph);
-
-fitGraph()
-makeEditor()
+                graphViewer.setOnZoom(() => {
+                    if (graphFitted) {
+                        graphFitted = false;
+                        fitButton.style.display = '';
+                    }
+                });
+            }
         ''')
-        alreadyRunOnce = True
-        await update_graph(codeEditor.initial_text)
 
-ui.timer(0.2, makeSVGViewer, once=True)
+    async def firstPass():
+        """Makes a trivial SVG, configures the svg viewer, configures the editor, then replaces the SVG with the right one."""
+        with editor:
+            graph_contents_initial = await update_graph("return") # a blank svg.
+            await ui.run_javascript('''
+                window.fitButton = document.querySelector('#fullsize-button');
+                window.graphFitted = false;
+                const observer = new ResizeObserver(() => {
+                    graphViewer.resize();
+                    if (graphFitted) {
+                        fitGraph()
+                    }
+                });
+
+                observer.observe(document.getElementById('graph-container'));
+
+                window.fitGraph = function() {
+                    window.graphFitted = false;
+                    graphViewer.fit();
+                    graphViewer.center();
+                    window.fitButton.style.display = 'none';
+                    window.graphFitted = true;
+                };
+
+                fitButton.addEventListener('press',fitGraph);
+
+                fitGraph()
+                makeEditor()
+            ''')
+            await update_graph(codeEditor.initial_text)
+
+    ui.timer(0.2,firstPass,once=True)
 
 ui.run(reload=False)
