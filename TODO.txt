@@ -12,7 +12,5 @@
 		- Errors may need to provide location in numerical form.
 	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
-	- block use of INPUT in web version. Block 'print' as well.
-		- Why is 'print' causing an error with printn on? Test.
-	- allow graph output to be disabled in settings.
+	- block use of INPUT in web version.
 	- add ability to show only 1 panel (either left or right) using buttons

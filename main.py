@@ -175,17 +175,17 @@ def stringSortKey(s):
                     except:
                         return len(s),s
 
-def runCommand(ast,varLookup,data,conts,autoMark):
+def runCommand(args,ast,varLookup,data,conts,autoMark):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     if ast.nodeType != "command": raise Exception("Tried to run a non-command!: " + ast.val.raw)
     if autoMark and ast.markAfter:
         # some commands can't be auto-marked:
         if ast.val in ["print","printa","printc","printr","for","if","return","bychance"]:
-            return runCommand(ast,varLookup,data,conts,False)
+            return runCommand(args,ast,varLookup,data,conts,False)
         # Regular cases: select, input, set (=)
         # Run the command without auto-marking
-        conts = runCommand(ast,varLookup,data,conts,False)
+        conts = runCommand(args,ast,varLookup,data,conts,False)
         # Auto-mark afterward
         if autoMark == 1:
             # The label is "varname:\nvalue"
@@ -266,7 +266,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
                     subConts = subConts.discard(ast.discardsInt)
                 else:
                     subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
-                subConts = runBlock(ast[2],varLookup,data,subConts,autoMark)
+                subConts = runBlock(args,ast[2],varLookup,data,subConts,autoMark)
             newConts = newConts + subConts
         return newConts
     elif ast.val == "bychance":
@@ -303,7 +303,7 @@ def runCommand(ast,varLookup,data,conts,autoMark):
                 newConts = newConts + blocks[block].discard(ast.discardsInt)
                 continue
             subConts = blocks[block].discard(ast.discardsInt)
-            newSubConts = runBlock(block,varLookup,data,subConts,autoMark)
+            newSubConts = runBlock(args,block,varLookup,data,subConts,autoMark)
             newConts = newConts + newSubConts
         return newConts
     elif ast.val in ["print","printc","printa","printr"] and args.printn:
@@ -379,6 +379,8 @@ def runCommand(ast,varLookup,data,conts,autoMark):
             newConts += con,md
         return newConts.discard(ast.discardsInt)
     elif ast.val == "input":
+        if args.printn:
+            error(red("Error:") + " input cannot be obtained if the '-printn' flag is used.\n(Input also can't be obtained in the website version of StatSLV.)")
         newConts = Contexts()
         inpCountId = varLookup["~inpCount~"]
         allDisps = defaultdict(list)
@@ -418,11 +420,11 @@ def runMarkCommand(conts,labelLambda):
     return newConts
 
 
-def runBlock(ast,varLookup,data,conts,autoMark):
+def runBlock(args,ast,varLookup,data,conts,autoMark):
     """Runs an AST block or program. Takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     for command in ast:
-        conts = runCommand(command,varLookup,data,conts,autoMark)
+        conts = runCommand(args,command,varLookup,data,conts,autoMark)
     return conts
 
 class TypeChecker:
@@ -753,7 +755,7 @@ def runInternal(fileCont,args):
         marks = ast.filter(lambda node: node.nodeType == "command" and node.val == "!")
         autoMark = int(not marks)
 
-    contRes = runBlock(ast,varLookup,d,c,autoMark)
+    contRes = runBlock(args,ast,varLookup,d,c,autoMark)
 
     # Generate the results.
     resStr,success = generateRes(d,args)
@@ -833,7 +835,7 @@ def main():
     else:
         autoMark = int(False)
 
-    contRes = runBlock(ast,varLookup,d,c,autoMark)
+    contRes = runBlock(args,ast,varLookup,d,c,autoMark)
 
     resStr,success = generateRes(d,args)
     if not success: error(resStr)

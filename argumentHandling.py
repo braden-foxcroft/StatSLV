@@ -52,7 +52,7 @@ def parseArgs(argList,noFileNeeded=False):
     ParserPrint.add_argument('-printa',"-pa",action='store_true',help=showArg("'print' will be treated like 'printa' (show absolute probablilty for print to occur). This is the default.",argsIO))
     ParserPrint.add_argument('-printc',"-pc",action='store_true',help=showArg("'print' will be treated like 'printc'. (show count for how many times it printed)",argsIO))
     ParserPrint.add_argument('-printr',"-pr",action='store_true',help=showArg("'print' will be treated like 'printr'. (show relative probability for print to occur.)",argsIO))
-    ParserPrint.add_argument('-printn',"-pn",action='store_true',help=showArg("Don't print anything.",argsIO))
+    ParserPrint.add_argument('-printn',"-pn",action='store_true',help=showArg("Don't print anything or allow use of the 'input' command.",argsIO))
 
     ParserGraph = parser.add_argument_group('Graph options')
     ParserGraph.add_argument('-graph','-g',action='store_true',help=showArg("Make a graph of the results. Uses graphviz graph-to-pdf converter",argsCommon or argsGraph))
