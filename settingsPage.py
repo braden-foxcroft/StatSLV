@@ -164,7 +164,7 @@ class Settings:
         self.auto_refresh,_ = self._switch(
             'Auto-refresh',
             True,
-            "Automatically refresh the graph when the code changes.\nYou can manually refresh with the refresh button in the top-left corner of the graph."
+            "Automatically refresh the graph when the code changes.\nYou can manually refresh with the run button in the top-left corner of the graph."
         )
 
         self.auto_refresh_timeout = self._number(
@@ -172,7 +172,7 @@ class Settings:
             5.0,
             min_value=0,
             step=0.1,
-            tooltip="How many seconds before an auto-refresh gives up?\nIf it gives up, the refresh button will show that it timed out."
+            tooltip="How many seconds before an auto-refresh gives up?\nIf it gives up, the refresh button will show that it timed out.\nTimeouts are measured for code execution only; graph generation is not timed."
         )
 
         self.require_manual_refresh,_ = self._switch(

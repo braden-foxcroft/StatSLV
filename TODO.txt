@@ -2,10 +2,8 @@
 - Test the parser and lexer. Ensure that error messages make sense.
 - Check for TODOs inside files
 - Documentation and code samples
+- Add 'continue' and 'break' commands. Need to adjust prev/next to correctly manage them. Add a static analysis step for matching continue/break to corresponding 'for', and add semantics for blocks yielding continue/break lists as well.
 - GUI version with auto-updating graph:
-	- run indicator / re-running button
-		- Supports run, waiting, running, timed out.
 	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
-	- Control over automatic re-running (turns off if previously timed out)
 	- data validation and safety for timeout times.

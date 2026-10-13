@@ -37,6 +37,44 @@ emptySVG = main.runInternal("return",args)[1]
 graph_lock = asyncio.Lock() # The lock to ensure single-threaded graph updates.
 
 
+def create_run_button(on_clicked):
+    """Takes a function to call when the button is clicked,
+    returns the function which sets the button mode."""
+
+
+    # Create a container that positions the button at the top-right.
+    button = ui.button(
+        'Run',
+        icon='play_arrow',
+        on_click=on_clicked,
+    ).props('no-caps').props('flat dense').classes('ml-auto')
+
+    def set_run_button(mode: str):
+        if mode == 'run':
+            button.props('color=positive')
+            button.props('icon=play_arrow')
+            button.text = 'Run'
+        elif mode == 'running':
+            button.props('color=primary')
+            button.props('icon=sync')
+            button.text = 'Running'
+        elif mode == 'waiting':
+            button.props('color=warning')
+            button.props('icon=schedule')
+            button.text = 'Waiting'
+        elif mode == 'timed_out':
+            button.props('color=negative')
+            # button.props('icon=warning')
+            button.props('icon=play_arrow')
+            button.text = 'Timed Out'
+        elif mode == 'graph_generating':
+            button.props('color=deep-purple')
+            button.props('icon=device_hub')
+            button.text = 'Graph Generating'
+        else:
+            raise ValueError(f'Unknown button mode: {mode}')
+
+    return set_run_button
 
 
 @ui.page("/")
@@ -53,12 +91,12 @@ def main_page():
     # Whether the last run timed out
     timedOut = False
 
-    def make_graph(source: str) -> str:
+    def make_graph(source: str, isManual=False) -> str:
         """
         Take source code, return a str result and a Graphviz SVG.
         Either or both return values can be None."""
         try:
-            currentArgs = settingsPage.settingsToArgs(settings.get_state())
+            currentArgs = settingsPage.settingsToArgs(settings.get_state(),isManual)
         except:
             # This will trigger if the settings haven't been set up yet.
             currentArgs = args # The args parsed by the command-line
@@ -75,64 +113,70 @@ def main_page():
         return res, graphVal, False
 
 
-    async def update_graph(source):
-        """Regenerate the graph after the user stops typing."""
+    async def update_graph(source,isManual=False):
+        """Run the code and update the graph."""
         nonlocal timedOut
-
+        
+        set_run_button('waiting')
         async with graph_lock:
-            resText,svgVal,timedOutFlag = await asyncio.to_thread(make_graph, source)
+            set_run_button('running')
+            resText,svgVal,timedOutFlag = await asyncio.to_thread(make_graph, source,isManual)
 
         if timedOutFlag:
-            set_message(f"Timed out.",True)
+            set_run_button('timed_out')
             timedOut = True
             return
         timedOut = False
 
         if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
 
-        if svgVal == None or svgVal == "No graph requested.": return # Don't modify the graph if there was an error or no graph was provided.
+        try:
+            if svgVal == None or svgVal == "No graph requested.":
+                return # Don't modify the graph if there was an error or no graph was provided.
 
-
-        with editor:
-            await ui.run_javascript('''
-                    if (window.graphViewer && !window.graphFitted) {
-                        window.graphZoom = graphViewer.getZoom();
-                        window.graphPan = graphViewer.getPan();
-                        document.querySelector('#graph-container').style.visibility = 'hidden';
-                    }
-                ''',timeout=5)
-            
-            
-            if len(svgVal) > 2000000:
-                # the viewer will never finish being made.
-                graph.content="Graph is too big to display on the website. Use the command-line interface to make large graphs instead."
-                
-                await ui.run_javascript("""
-                    window.graphViewer = false;
-                    document.querySelector('#graph-container').style.visibility = 'visible';""")
-                return
-
-            async with big_operation_lock:
-                graph.content = svgVal
-
-                await asyncio.sleep(0.1)
-                await makeSVGViewer()
-
+            set_run_button('graph_generating')
+            with editor:
                 await ui.run_javascript('''
-                    if (window.graphFitted) {
-                        graphFitted = false
-                        graphViewer.updateBBox();
-                        fitGraph()
-                    } else if (window.graphViewer) {
-                        graphViewer.updateBBox();
-
-                        if (window.graphZoom !== undefined) {
-                            graphViewer.zoom(graphZoom);
-                            graphViewer.pan(graphPan);
+                        if (window.graphViewer && !window.graphFitted) {
+                            window.graphZoom = graphViewer.getZoom();
+                            window.graphPan = graphViewer.getPan();
+                            document.querySelector('#graph-container').style.visibility = 'hidden';
                         }
-                        document.querySelector('#graph-container').style.visibility = 'visible';
-                    }
-                ''',timeout=20)
+                    ''',timeout=5)
+                
+                
+                if len(svgVal) > 2000000:
+                    # the viewer will never finish being made.
+                    graph.content="Graph is too big to display on the website. Use the command-line interface to make large graphs instead. Turning off labels may help as well."
+                    
+                    await ui.run_javascript("""
+                        window.graphViewer = false;
+                        document.querySelector('#graph-container').style.visibility = 'visible';""")
+                    return
+
+                async with big_operation_lock:
+                    graph.content = svgVal
+
+                    await asyncio.sleep(0.1)
+                    await makeSVGViewer()
+
+                    await ui.run_javascript('''
+                        if (window.graphFitted) {
+                            graphFitted = false
+                            graphViewer.updateBBox();
+                            fitGraph()
+                        } else if (window.graphViewer) {
+                            graphViewer.updateBBox();
+
+                            if (window.graphZoom !== undefined) {
+                                graphViewer.zoom(graphZoom);
+                                graphViewer.pan(graphPan);
+                            }
+                            document.querySelector('#graph-container').style.visibility = 'visible';
+                        }
+                    ''',timeout=20)
+        finally:
+            set_run_button('run')
 
     # ------------------------------------------------------------
     # Graph worker threading.
@@ -157,7 +201,7 @@ def main_page():
             if is_autorun and (not autoRefresh or (timedOut and not autoRefreshAfterTimeout)):
                 continue # Skip if it is an invalid auto-refresh.
             # Generate the graph without blocking the event loop.
-            await update_graph(source)
+            await update_graph(source, not is_autorun)
 
 
     def request_update(e,manual_run=False):
@@ -252,6 +296,13 @@ def main_page():
             rightCol.classes(remove="w-full hidden",
                 add="w-1/2")
 
+    def bigGraphToggle(e):
+        if leftShown:
+            showColumn(False,True)
+            graph_toggle_button.icon = "fullscreen_exit"
+        else:
+            showColumn(True,True)
+            graph_toggle_button.icon = "fullscreen"
 
 
     async def settings_changed():
@@ -270,8 +321,7 @@ def main_page():
             if timer_val < 0: timer_val = -timer_val # abs value
             await ui.run_javascript(f'window.debounceTimeout = {timer_val}')
             code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
-            if code != "":
-                request_update(code) # Updates the graph when it gets the chance.
+            request_update(code) # Updates the graph when it gets the chance.
 
     def set_message(text: str, error: bool = False):
         with results_panel:
@@ -291,6 +341,10 @@ def main_page():
                 f'display: block; color: {color}; font-size: {font_size};'
             )
 
+    async def request_update_manual(e):
+        code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
+        # Request manual update when it gets the chance.
+        request_update(code,True)
 
     with ui.row().classes('w-full h-screen no-wrap'):
 
@@ -298,11 +352,12 @@ def main_page():
         with ui.column().classes('w-1/2 h-full pt-3') as leftCol:
 
             with ui.row().classes('w-full items-center px-2'):
-                title = ui.label('Source Code').classes('text-lg font-bold')
+                title = ui.label('Source Code').classes('text-lg font-bold p-2')
 
+                set_run_button = create_run_button(request_update_manual)
                 toggle_button = ui.button(
                     icon='settings'
-                ).props('flat round dense').classes('ml-auto')
+                ).props('flat round dense')
 
             with ui.element('div').classes(
                 'w-full flex-1 min-h-0 overflow-auto'
@@ -330,9 +385,15 @@ def main_page():
         # Right side: graph
         with ui.column().classes('w-1/2 h-98/100 pt-3') as rightCol:
 
-            ui.label('Graph').classes(
-                'text-lg font-bold p-2'
-            )
+            with ui.row().classes('w-full items-center px-2'):
+                ui.label('Graph').classes(
+                    'text-lg font-bold p-2'
+                )
+
+                graph_toggle_button = ui.button(
+                    icon='fullscreen',
+                    on_click=bigGraphToggle
+                ).props('flat round dense').classes('ml-auto')
 
             with ui.element('div').classes('relative w-full h-full overflow-hidden'):
                 
