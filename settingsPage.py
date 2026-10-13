@@ -49,11 +49,15 @@ def argsToSettings(args):
         sets.automark = 'auto'
 
     sets.no_discards = args.DebugNoDiscards
+    sets.graph = True # Make a graph automatically
+    if args.timeout != None:
+        sets.auto_refresh_timeout = args.timeout
 
     return sets
 
-def settingsToArgs(sets):
-    """Take a SettingsState obj, and return args from argumentHandling."""
+def settingsToArgs(sets,manualRun=False):
+    """Take a SettingsState obj (and optionally whether it is a manual run or an auto-run, used for timeouts)
+    returns args from argumentHandling."""
     args,_ = argumentHandling.parseArgs([],True) # an empty args object.
     args.f = False # Since this is on by default.
 
@@ -67,6 +71,7 @@ def settingsToArgs(sets):
     args.silent = sets.no_warnings
     args.intAllowed = sets.display_ints
 
+    args.graph = sets.graph
     args.graphNoSingleton = sets.no_singleton
     args.graphBubbles = sets.weighted_bubbles
     args.graphNoLabelNodes = not sets.node_labels
@@ -90,9 +95,12 @@ def settingsToArgs(sets):
 
     args.DebugNoDiscards = sets.no_discards
 
+    if manualRun: args.timeout = sets.manual_refresh_timeout
+    else: args.timeout = sets.auto_refresh_timeout
+
     # Bonus, to suppress printing and inputs:
     args.printn = True
-    # TODO suppress input; make command-line flag for this.
+    
 
     return args
 
@@ -121,6 +129,7 @@ class SettingsState:
     display_ints: bool = False
 
     # Graph
+    graph: bool = True
     no_singleton: bool = False
     weighted_bubbles: bool = False
     node_labels: bool = True
@@ -249,6 +258,12 @@ class Settings:
         # ------------------------------------------------------------
 
         self._section('Graph')
+
+        self.graph,_ = self._switch(
+            'Make graph',
+            True,
+            tooltip="Make a graph for output."
+        )
 
         self.no_singleton,_ = self._switch(
             'No singleton',
@@ -441,6 +456,7 @@ class Settings:
     def get_state(self) -> SettingsState:
         return SettingsState(
             auto_refresh=self.auto_refresh.value,
+            # TODO data validation on timeouts.
             auto_refresh_timeout=self.auto_refresh_timeout.value,
             require_manual_refresh=self.require_manual_refresh.value,
             manual_refresh_timeout=self.manual_refresh_timeout.value,
@@ -454,6 +470,7 @@ class Settings:
             no_warnings=self.no_warnings.value,
             display_ints=self.display_ints.value,
 
+            graph=self.graph.value,
             no_singleton=self.no_singleton.value,
             weighted_bubbles=self.weighted_bubbles.value,
             node_labels=self.node_labels.value,
@@ -489,6 +506,7 @@ class Settings:
             self.no_warnings.value = state.no_warnings
             self.display_ints.value = state.display_ints
 
+            self.graph.value = state.graph
             self.no_singleton.value = state.no_singleton
             self.weighted_bubbles.value = state.weighted_bubbles
             self.node_labels.value = state.node_labels

@@ -10,12 +10,23 @@ import graph
 dd = lambda : defaultdict(Frac)
 Frac = Fraction
 
+import time
 import sys
 import os
 os.system("") # Turns on ANSI color codes, if needed. Only relevant to a handful of versions of Windows 10, but since my device is one of them, I care.
 
 
 # Note: pretty much all of this code is human-generated. Files will have a disclaimer if AI was used to write code in that file.
+
+class TimerException(Exception):
+    """This occurs when the program runs past the point of timing out."""
+    
+
+    def __init__(this,message):
+        this.customMessage = message
+
+    def __str__(this): return this.customMessage
+    def __repr__(this): return this.customMessage
 
 class Data:
     """Tracks passes, fails, exits, and returns."""
@@ -175,17 +186,17 @@ def stringSortKey(s):
                     except:
                         return len(s),s
 
-def runCommand(args,ast,varLookup,data,conts,autoMark):
+def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     if ast.nodeType != "command": raise Exception("Tried to run a non-command!: " + ast.val.raw)
     if autoMark and ast.markAfter:
         # some commands can't be auto-marked:
         if ast.val in ["print","printa","printc","printr","for","if","return","bychance"]:
-            return runCommand(args,ast,varLookup,data,conts,False)
+            return runCommand(args,ast,varLookup,data,conts,False,timeout)
         # Regular cases: select, input, set (=)
         # Run the command without auto-marking
-        conts = runCommand(args,ast,varLookup,data,conts,False)
+        conts = runCommand(args,ast,varLookup,data,conts,False,timeout)
         # Auto-mark afterward
         if autoMark == 1:
             # The label is "varname:\nvalue"
@@ -201,8 +212,14 @@ def runCommand(args,ast,varLookup,data,conts,autoMark):
         var = ast[0].varId
         expr = ast[1]
         cond = ast[2]
+        untilCheckTime = 0 # A countdown for when to check the timeout again.
         # For each context, apply the select.
         for con,md in conts:
+            if untilCheckTime == 0:
+                if timeout != None and time.monotonic() > timeout:
+                    raise TimerException("This timeout message shouldn't be used for anything\nThe code timed out, though.")
+                untilCheckTime == 1000
+            untilCheckTime -= 1
             # Determine the options for the select
             vals = doEval(expr,con,md.odds,False)
             if not isinstance(vals,tuple):
@@ -261,12 +278,14 @@ def runCommand(args,ast,varLookup,data,conts,autoMark):
         for block in blocks:
             subConts = blocks[block]
             for i in block:
+                if timeout != None and time.monotonic() > timeout:
+                    raise TimerException("This timeout message shouldn't be used for anything\nThe code timed out, though.")
                 # Don't assign var if it will just be instantly deleted.
                 if ast[0].varId in ast.discardsInt:
                     subConts = subConts.discard(ast.discardsInt)
                 else:
                     subConts = subConts.assign(ast[0].varId,i).discard(ast.discardsInt)
-                subConts = runBlock(args,ast[2],varLookup,data,subConts,autoMark)
+                subConts = runBlock(args,ast[2],varLookup,data,subConts,autoMark,timeout)
             newConts = newConts + subConts
         return newConts
     elif ast.val == "bychance":
@@ -303,7 +322,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark):
                 newConts = newConts + blocks[block].discard(ast.discardsInt)
                 continue
             subConts = blocks[block].discard(ast.discardsInt)
-            newSubConts = runBlock(args,block,varLookup,data,subConts,autoMark)
+            newSubConts = runBlock(args,block,varLookup,data,subConts,autoMark,timeout)
             newConts = newConts + newSubConts
         return newConts
     elif ast.val in ["print","printc","printa","printr"] and args.printn:
@@ -420,11 +439,11 @@ def runMarkCommand(conts,labelLambda):
     return newConts
 
 
-def runBlock(args,ast,varLookup,data,conts,autoMark):
+def runBlock(args,ast,varLookup,data,conts,autoMark,timeout):
     """Runs an AST block or program. Takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     for command in ast:
-        conts = runCommand(args,command,varLookup,data,conts,autoMark)
+        conts = runCommand(args,command,varLookup,data,conts,autoMark,timeout)
     return conts
 
 class TypeChecker:
@@ -755,14 +774,22 @@ def runInternal(fileCont,args):
         marks = ast.filter(lambda node: node.nodeType == "command" and node.val == "!")
         autoMark = int(not marks)
 
-    contRes = runBlock(args,ast,varLookup,d,c,autoMark)
+    if args.timeout != None: timeout = time.monotonic() + args.timeout
+    else: timeout = None
+
+    contRes = runBlock(args,ast,varLookup,d,c,autoMark,timeout)
 
     # Generate the results.
     resStr,success = generateRes(d,args)
     if not success: return resStr,None # An error message.
 
-    # Only generate the graph if the result was a non-error.
-    graphRes = makeGraph(args,True)
+    # Generate the graph
+    if args.graph:
+        graphRes = makeGraph(args,True)
+    else:
+        # This value is discarded in the recieving code,
+        # but it can't be 'None' since that is the error value.
+        graphRes = "No graph requested."
 
 
     return resStr, graphRes
@@ -787,7 +814,6 @@ def makeGraph(args,outputAsStr=False):
 
 def main():
     """This is the function which runs when used as a freestanding command-line compiler/interpreter"""
-    args,fileS = parseArgs(sys.argv[1:],True) # Don't ask for file
 
     args,fileS = parseArgs(sys.argv[1:])
     #print(args)
@@ -835,7 +861,9 @@ def main():
     else:
         autoMark = int(False)
 
-    contRes = runBlock(args,ast,varLookup,d,c,autoMark)
+    if args.timeout != None: timeout = time.monotonic() + args.timeout
+    else: timeout = None
+    contRes = runBlock(args,ast,varLookup,d,c,autoMark,timeout)
 
     resStr,success = generateRes(d,args)
     if not success: error(resStr)
@@ -856,4 +884,11 @@ if __name__ == "__main__":
             print(e.customMessage,file=sys.stderr)
         except: # Try again, but print to stdout instead
             print(e.customMessage)
+        exit(1)
+    except TimerException as e:
+        try:
+            import sys
+            print("Timed out.",file=sys.stderr)
+        except: # Try again, but print to stdout instead
+            print("Timed out.")
         exit(1)

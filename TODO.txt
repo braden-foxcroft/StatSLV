@@ -3,13 +3,9 @@
 - Check for TODOs inside files
 - Documentation and code samples
 - GUI version with auto-updating graph:
-	- Auto-run control: distinguish between auto-run and manual run, track whether it timed out, etc.
-	- flag-controlled timeouts on execution of code
-		- A second error type, so that the runner can handle it correctly.
-	- run indicator button
+	- run indicator / re-running button
+		- Supports run, waiting, running, timed out.
 	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
-	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
-	- add ability to show only the graph panel using a button.
-	- Allow the graph result to be disabled in the settings. This should hide the graph panel as well.
+	- data validation and safety for timeout times.

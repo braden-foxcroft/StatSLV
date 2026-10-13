@@ -9,6 +9,7 @@ import argumentHandling
 # Argument handling at the top. This way, the '-h' flag runs faster.
 args,fileS = argumentHandling.parseArgs(sys.argv[1:],True)
 args.printn = True # Block print statements.
+args.graph = True # make graph.
 
 import graph
 graph.doImports() # Make sure that graphviz works. Exit otherwise.
@@ -43,7 +44,14 @@ def main_page():
 
     big_operation_lock = asyncio.Lock()
 
+    # The graph obj.
     graph = None
+    # Whether the settings say to auto-refresh.
+    autoRefresh = True
+    # Whether the settings require a manual refresh after a timeout
+    autoRefreshAfterTimeout = False
+    # Whether the last run timed out
+    timedOut = False
 
     def make_graph(source: str) -> str:
         """
@@ -57,23 +65,33 @@ def main_page():
         try:
             res, graphVal = main.runInternal(source,currentArgs)
         except ExitException as e:
-            return e.customMessage, None
+            return e.customMessage, None, False
+        except main.TimerException:
+            return "Timed out", None, True
         except Exception: # This isn't normally supposed to happen.
             errorTrace = traceback.format_exc()
-            return errorTrace, None
+            return errorTrace, None, False
         
-        return res, graphVal
+        return res, graphVal, False
 
 
     async def update_graph(source):
         """Regenerate the graph after the user stops typing."""
+        nonlocal timedOut
 
         async with graph_lock:
-            resText,svgVal = await asyncio.to_thread(make_graph, source)
+            resText,svgVal,timedOutFlag = await asyncio.to_thread(make_graph, source)
+
+        if timedOutFlag:
+            set_message(f"Timed out.",True)
+            timedOut = True
+            return
+        timedOut = False
 
         if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
 
-        if svgVal == None: return # Don't modify the graph if there was an error.
+        if svgVal == None or svgVal == "No graph requested.": return # Don't modify the graph if there was an error or no graph was provided.
+
 
         with editor:
             await ui.run_javascript('''
@@ -122,29 +140,36 @@ def main_page():
 
     # Used by the graph worker, which completes tasks one-by-one.
     pending_code = None
+    pending_code_is_autorun = False
     worker_task = None
 
     async def worker():
-        nonlocal pending_code
-        global graph_lock
+        nonlocal pending_code, pending_code_is_autorun
 
-        while pending_code is not None:
+        while True:
             # Take the latest pending version.
             source = pending_code
             pending_code = None
+            is_autorun = pending_code_is_autorun
+            pending_code_is_autorun = False
+            if source is None: break # No code waiting.
 
+            if is_autorun and (not autoRefresh or (timedOut and not autoRefreshAfterTimeout)):
+                continue # Skip if it is an invalid auto-refresh.
             # Generate the graph without blocking the event loop.
             await update_graph(source)
 
 
-    def request_update(e):
-        nonlocal pending_code, worker_task
+    def request_update(e,manual_run=False):
+        nonlocal pending_code, worker_task,pending_code_is_autorun
         # Get the actual code and tell it to be the next run.
         if isinstance(e,str):
             source = str(e)
         else:
             source = e.args["text"]
+
         pending_code = source
+        pending_code_is_autorun = not manual_run
 
         # Start a worker if one isn't already running.
         if worker_task is None or worker_task.done():
@@ -206,9 +231,40 @@ def main_page():
             title.text = 'Settings'
             toggle_button.props('icon=code')
 
+    leftShown = True
+    rightShown = True
+    def showColumn(left=True,right=True):
+        nonlocal leftShown,rightShown
+        leftShown,rightShown = left,right
+        if left and not right:
+            leftCol.classes(remove="w-1/2 hidden",
+                add="w-full")
+            rightCol.classes(remove="w-1/2 w-full",
+                add="hidden")
+        elif right and not left:
+            rightCol.classes(remove="w-1/2 hidden",
+                add="w-full")
+            leftCol.classes(remove="w-1/2 w-full",
+                add="hidden")
+        else:
+            leftCol.classes(remove="w-full hidden",
+                add="w-1/2")
+            rightCol.classes(remove="w-full hidden",
+                add="w-1/2")
+
+
+
     async def settings_changed():
+        nonlocal autoRefresh,autoRefreshAfterTimeout
         with settings_panel:
-            timer_val = settings.get_state().debounce_timer
+            state = settings.get_state()
+            autoRefresh = state.auto_refresh
+            autoRefreshAfterTimeout = not state.require_manual_refresh
+            if state.graph:
+                showColumn()
+            else:
+                showColumn(True,False)
+            timer_val = state.debounce_timer
             try: timer_val = int(timer_val)
             except: timer_val = 0
             if timer_val < 0: timer_val = -timer_val # abs value
@@ -239,7 +295,7 @@ def main_page():
     with ui.row().classes('w-full h-screen no-wrap'):
 
         # Left side: editor
-        with ui.column().classes('w-1/2 h-full pt-3'):
+        with ui.column().classes('w-1/2 h-full pt-3') as leftCol:
 
             with ui.row().classes('w-full items-center px-2'):
                 title = ui.label('Source Code').classes('text-lg font-bold')
@@ -272,7 +328,7 @@ def main_page():
         ui.on('code_changed', request_update)
 
         # Right side: graph
-        with ui.column().classes('w-1/2 h-98/100 pt-3'):
+        with ui.column().classes('w-1/2 h-98/100 pt-3') as rightCol:
 
             ui.label('Graph').classes(
                 'text-lg font-bold p-2'

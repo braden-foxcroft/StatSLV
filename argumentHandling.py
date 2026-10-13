@@ -29,6 +29,8 @@ def parseArgs(argList,noFileNeeded=False):
         argsGraph = True
         argsDebug = True
         argsCommon = True
+    if argsIO or argsGraph or argsDebug or argsCommon:
+        noFileNeeded = True
 
 
     parser = argparse.ArgumentParser(description="An interpreter for the StatSLV programming language.")
@@ -96,7 +98,8 @@ def parseArgs(argList,noFileNeeded=False):
     parserExtraDisp.add_argument('-skipInp','-ni',action='store_true',help=showArg("When getting input: if the input has already been obtained, then don't display the question or answer at all.",argsIO))
 
     parserDebug = parser.add_argument_group('Debug options')
-    parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help=showArg("Variables will be kept even after they are no longer needed. If the graph is merging nodes, this may prevent it.",argsCommon or   argsDebug))
+    parserDebug.add_argument('-timeout','-t',action="store",type=float,help=showArg("How many seconds before code execution aborts?", argsCommon or argsDebug))
+    parserDebug.add_argument('-DebugNoDiscards','-nd', action="store_true",help=showArg("Variables will be kept even after they are no longer needed. If the graph is merging nodes, this may prevent it.",argsCommon or argsDebug))
     parserDebug.add_argument('-DebugStaticAnalysis','-dsa', action="store_true",help=showArg("Show a debug of the program in various stages of static analysis.",argsDebug))
     parserDebug.add_argument('-DebugDiscards','-dd', action="store_true",help=showArg("Show a debug of the discards of the program",argsDebug))
     parserDebug.add_argument('-DebugReconstruct','-dr', action="store_true",help=showArg("Display the original program, as interpreted by the parser.",argsCommon or argsDebug))
