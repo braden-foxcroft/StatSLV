@@ -1,0 +1,18 @@
+
+# What are the odds that you flip 50 coins and get at least 40 heads?
+
+# If you increase the number of flips above 80 or so, the graph-builder and website graph-displayer may struggle to render it in reasonable time.
+# However, the numeric solver will have no issues giving you a result, even up to 200 flips.
+
+
+sum = 0
+for i from 1 to 50
+	sum = sum + select(0,1)
+
+
+
+
+if sum >= 40
+	pass
+else
+	fail

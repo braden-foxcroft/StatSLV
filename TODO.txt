@@ -7,10 +7,9 @@
 	- flag-controlled timeouts on execution of code
 		- A second error type, so that the runner can handle it correctly.
 	- run indicator button
-	- Thread-safety and a handler thread.
 	- Use a text editor with syntax highlighting (maybe also custom-colored chars for error messages)
 		- Errors may need to provide location in numerical form.
 	- Re-running button (which also shows status)
 	- Control over automatic re-running (turns off if previously timed out)
-	- block use of INPUT in web version.
-	- add ability to show only 1 panel (either left or right) using buttons
+	- add ability to show only the graph panel using a button.
+	- Allow the graph result to be disabled in the settings. This should hide the graph panel as well.

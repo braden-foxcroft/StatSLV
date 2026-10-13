@@ -28,85 +28,127 @@ import codeEditor # The module which manages code editing.
 import settingsPage
 
 
-
-
 if fileS != None: # Use file contents if provided.
     codeEditor.initial_text = fileS
 
-def make_graph(source: str) -> str:
-    """
-    Take source code, return a str result and a Graphviz SVG.
-    Either or both return values can be None."""
-    try:
-        currentArgs = settingsPage.settingsToArgs(settings.get_state())
-    except:
-        # This will trigger if the settings haven't been set up yet.
-        currentArgs = args # The args parsed by the command-line
-    try:
-        res, graphVal = main.runInternal(source,currentArgs)
-    except ExitException as e:
-        return e.customMessage, None
-    except Exception: # This isn't normally supposed to happen.
-        errorTrace = traceback.format_exc()
-        return errorTrace, None
-    
-    return res, graphVal
+emptySVG = main.runInternal("return",args)[1]
+
+graph_lock = asyncio.Lock() # The lock to ensure single-threaded graph updates.
 
 
-# ------------------------------------------------------------
-# GUI state
-# ------------------------------------------------------------
 
 
 @ui.page("/")
 def main_page():
 
+    big_operation_lock = asyncio.Lock()
+
     graph = None
 
+    def make_graph(source: str) -> str:
+        """
+        Take source code, return a str result and a Graphviz SVG.
+        Either or both return values can be None."""
+        try:
+            currentArgs = settingsPage.settingsToArgs(settings.get_state())
+        except:
+            # This will trigger if the settings haven't been set up yet.
+            currentArgs = args # The args parsed by the command-line
+        try:
+            res, graphVal = main.runInternal(source,currentArgs)
+        except ExitException as e:
+            return e.customMessage, None
+        except Exception: # This isn't normally supposed to happen.
+            errorTrace = traceback.format_exc()
+            return errorTrace, None
+        
+        return res, graphVal
 
-    async def update_graph(e):
+
+    async def update_graph(source):
         """Regenerate the graph after the user stops typing."""
 
-        if isinstance(e,str):
-            source = str(e)
-        else:
-            source = e.args["text"]
-
-        resText,svgVal = await asyncio.to_thread(make_graph, source)
+        async with graph_lock:
+            resText,svgVal = await asyncio.to_thread(make_graph, source)
 
         if resText != None: set_message(resText,svgVal == None) # Empty text is fine.
 
         if svgVal == None: return # Don't modify the graph if there was an error.
 
-        await ui.run_javascript('''
-                if (window.graphViewer && !window.graphFitted) {
-                    window.graphZoom = graphViewer.getZoom();
-                    window.graphPan = graphViewer.getPan();
-                    document.querySelector('#graph-container').style.visibility = 'hidden';
-                }
-            ''')
-        
-        graph.content = svgVal
+        with editor:
+            await ui.run_javascript('''
+                    if (window.graphViewer && !window.graphFitted) {
+                        window.graphZoom = graphViewer.getZoom();
+                        window.graphPan = graphViewer.getPan();
+                        document.querySelector('#graph-container').style.visibility = 'hidden';
+                    }
+                ''',timeout=5)
+            
+            
+            if len(svgVal) > 2000000:
+                # the viewer will never finish being made.
+                graph.content="Graph is too big to display on the website. Use the command-line interface to make large graphs instead."
+                
+                await ui.run_javascript("""
+                    window.graphViewer = false;
+                    document.querySelector('#graph-container').style.visibility = 'visible';""")
+                return
 
-        await makeSVGViewer()
+            async with big_operation_lock:
+                graph.content = svgVal
 
-        await ui.run_javascript('''
-            if (window.graphFitted) {
-                graphFitted = false
-                graphViewer.updateBBox();
-                fitGraph()
-            } else if (window.graphViewer) {
-                graphViewer.updateBBox();
+                await asyncio.sleep(0.1)
+                await makeSVGViewer()
 
-                if (window.graphZoom !== undefined) {
-                    graphViewer.zoom(graphZoom);
-                    graphViewer.pan(graphPan);
-                }
-                document.querySelector('#graph-container').style.visibility = 'visible';
-            }
-        ''')
+                await ui.run_javascript('''
+                    if (window.graphFitted) {
+                        graphFitted = false
+                        graphViewer.updateBBox();
+                        fitGraph()
+                    } else if (window.graphViewer) {
+                        graphViewer.updateBBox();
+
+                        if (window.graphZoom !== undefined) {
+                            graphViewer.zoom(graphZoom);
+                            graphViewer.pan(graphPan);
+                        }
+                        document.querySelector('#graph-container').style.visibility = 'visible';
+                    }
+                ''',timeout=20)
+
+    # ------------------------------------------------------------
+    # Graph worker threading.
+    # ------------------------------------------------------------
+
+    # Used by the graph worker, which completes tasks one-by-one.
+    pending_code = None
+    worker_task = None
+
+    async def worker():
+        nonlocal pending_code
+        global graph_lock
+
+        while pending_code is not None:
+            # Take the latest pending version.
+            source = pending_code
+            pending_code = None
+
+            # Generate the graph without blocking the event loop.
+            await update_graph(source)
 
 
+    def request_update(e):
+        nonlocal pending_code, worker_task
+        # Get the actual code and tell it to be the next run.
+        if isinstance(e,str):
+            source = str(e)
+        else:
+            source = e.args["text"]
+        pending_code = source
+
+        # Start a worker if one isn't already running.
+        if worker_task is None or worker_task.done():
+            worker_task = asyncio.create_task(worker())
 
     # ------------------------------------------------------------
     # Page layout
@@ -173,7 +215,7 @@ def main_page():
             await ui.run_javascript(f'window.debounceTimeout = {timer_val}')
             code = await ui.run_javascript('window.codeEditor.state.doc.toString()')
             if code != "":
-                await update_graph(code) # Updates the graph immediately.
+                request_update(code) # Updates the graph when it gets the chance.
 
     def set_message(text: str, error: bool = False):
         with results_panel:
@@ -227,7 +269,7 @@ def main_page():
             toggle_button.on_click(toggle_settings)
 
         
-        ui.on('code_changed', update_graph)
+        ui.on('code_changed', request_update)
 
         # Right side: graph
         with ui.column().classes('w-1/2 h-98/100 pt-3'):
@@ -239,7 +281,7 @@ def main_page():
             with ui.element('div').classes('relative w-full h-full overflow-hidden'):
                 
                 graph = ui.html(
-                    "Please wait for the graph to be created."
+                    emptySVG
                 ).props(
                     'id=graph-container'
                 ).classes(
@@ -289,12 +331,13 @@ def main_page():
                     }
                 });
             }
-        ''')
+        ''',timeout=120.0)
+
 
     async def firstPass():
         """Makes a trivial SVG, configures the svg viewer, configures the editor, then replaces the SVG with the right one."""
         with editor:
-            graph_contents_initial = await update_graph("return") # a blank svg.
+            await makeSVGViewer()
             await ui.run_javascript('''
                 window.fitButton = document.querySelector('#fullsize-button');
                 window.graphFitted = false;
@@ -309,8 +352,10 @@ def main_page():
 
                 window.fitGraph = function() {
                     window.graphFitted = false;
-                    graphViewer.fit();
-                    graphViewer.center();
+                    if (graphViewer) {
+                        graphViewer.fit();
+                        graphViewer.center();
+                    }
                     window.fitButton.style.display = 'none';
                     window.graphFitted = true;
                 };
@@ -320,7 +365,7 @@ def main_page():
                 fitGraph()
                 makeEditor()
             ''')
-            await update_graph(codeEditor.initial_text)
+            request_update(codeEditor.initial_text)
 
     ui.timer(0.2,firstPass,once=True)
 
