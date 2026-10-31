@@ -61,12 +61,23 @@ def settingsToArgs(sets,manualRun=False):
     args,_ = argumentHandling.parseArgs([],True) # an empty args object.
     args.f = False # Since this is on by default.
 
-    if sets.percentage and sets.percentage_decimals == None: args.p = True
-    if sets.decimal and sets.decimal_decimals == None: args.d = True
-    if sets.fraction and sets.fraction_max_denominator == None: args.f = True
-    args.P = sets.percentage_decimals
-    args.D = sets.decimal_decimals
-    args.F = sets.fraction_max_denominator
+    if sets.percentage:
+        if sets.percentage_decimals == None:
+            args.p = True
+        else:
+            args.P = sets.percentage_decimals
+    if sets.decimal:
+        if sets.decimal_decimals == None:
+            args.d = True
+        else:
+            args.D = sets.decimal_decimals
+    if sets.fraction:
+        if sets.fraction_max_denominator == None:
+            args.f = True
+        else:
+            args.F = sets.fraction_max_denominator
+    
+    
 
     args.silent = sets.no_warnings
     args.intAllowed = sets.display_ints

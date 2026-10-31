@@ -678,7 +678,7 @@ def makeNiceFrac(res):
     den = str(den)
     num,den = padEven(num,den)
     maxLen = max(len(num),len(den))
-    print("\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4)))
+    return "\n" + col_int(num.center(maxLen+4)) +"\n" + "─"*(maxLen+4) + "\n" + col_int(den.center(maxLen+4))
     
     
 def makeAgg(res,args):
@@ -698,7 +698,6 @@ def makeAgg(res,args):
         resStr = lineAppend(resStr,f"({sfc}) {str(key)}")
     return resStr
 
-
 def lineAppend(st,line):
     """Takes a str and another str, and appends them, using a linebreak if the first str was non-empty."""
     if st == "": return line
@@ -711,11 +710,17 @@ def makeResult(res,args):
     if args.p:
         resStr = lineAppend(resStr,col_int(floatOrInt(res*100))+"%")
     if args.P != None:
-        resStr = lineAppend(resStr,col_int(round(floatOrInt(res*100),args.P))+"%")
+        if args.P == 0:
+            resStr = lineAppend(resStr,col_int(int(round(floatOrInt(res*100),0)))+"%")
+        else:
+            resStr = lineAppend(resStr,col_int(round(floatOrInt(res*100),args.P))+"%")
     if args.d:
         resStr = lineAppend(resStr,col_int(floatOrInt(res)))
     if args.D:
-        resStr = lineAppend(resStr,col_int(round(floatOrInt(res),args.D)))
+        if args.D == 0:
+            resStr = lineAppend(resStr,col_int(int(round(floatOrInt(res),0))))
+        else:
+            resStr = lineAppend(resStr,col_int(round(floatOrInt(res),args.D)))
     if args.f:
         resStr = lineAppend(resStr,strFrac(res,args))
     if args.F != None:
