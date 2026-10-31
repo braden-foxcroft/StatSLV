@@ -71,6 +71,10 @@ def create_run_button(on_clicked):
             button.props('color=deep-purple')
             button.props('icon=device_hub')
             button.text = 'Graph Generating'
+        elif mode == 'graph_rendering':
+            button.props('color=orange')
+            button.props('icon=image')
+            button.text = 'Graph Rendering'
         else:
             raise ValueError(f'Unknown button mode: {mode}')
 
@@ -101,7 +105,8 @@ def main_page():
             # This will trigger if the settings haven't been set up yet.
             currentArgs = args # The args parsed by the command-line
         try:
-            res, graphVal = main.runInternal(source,currentArgs)
+            genGraphFunc = lambda : set_run_button("graph_generating")
+            res, graphVal = main.runInternal(source,currentArgs,genGraphFunc)
         except ExitException as e:
             return e.customMessage, None, False
         except main.TimerException:
@@ -134,7 +139,7 @@ def main_page():
             if svgVal == None or svgVal == "No graph requested.":
                 return # Don't modify the graph if there was an error or no graph was provided.
 
-            set_run_button('graph_generating')
+            set_run_button('graph_rendering')
             with editor:
                 await ui.run_javascript('''
                         if (window.graphViewer && !window.graphFitted) {
@@ -147,7 +152,7 @@ def main_page():
                 
                 if len(svgVal) > 2000000:
                     # the viewer will never finish being made.
-                    graph.content="Graph is too big to display on the website. Use the command-line interface to make large graphs instead. Turning off labels may help as well."
+                    graph.content="Graph is too big to display on the website. Use the command-line interface to make large graphs instead. Turning off node/edge labels in the settings may help as well. (This problem occurs because the entire graph must be loaded into RAM at once. I put a reasonable constraint to prevent it from overloading your RAM, since this would cause your browser to reload or kill the website automatically.)"
                     
                     await ui.run_javascript("""
                         window.graphViewer = false;

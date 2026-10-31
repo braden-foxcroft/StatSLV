@@ -186,10 +186,24 @@ def stringSortKey(s):
                     except:
                         return len(s),s
 
+untilCheckTime = 0
+def checkTimer(timeout):
+    """Takes the counter for when to run next (0 to check immediately) and the timeout for when it should expire.
+    Returns the counter, updated to the next value.
+    If the timeout is reached, it calls a TimerException (custom exception)."""
+    if timeout == None: return
+    global untilCheckTime
+    if untilCheckTime <= 0:
+        if time.monotonic() > timeout:
+            raise TimerException("This timeout message shouldn't be used for anything\nThe code timed out, though.")
+        untilCheckTime = 1000
+    untilCheckTime -= 1
+
 def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     """Runs an AST Command. takes the AST, a var lookup (staticAnalysis.VarMapping object), a Data object, and a Contexts object.
     Returns a new Contexts, and mutates the data object as needed."""
     if ast.nodeType != "command": raise Exception("Tried to run a non-command!: " + ast.val.raw)
+    checkTimer(timeout) # check and set timer for next check.
     if autoMark and ast.markAfter:
         # some commands can't be auto-marked:
         if ast.val in ["print","printa","printc","printr","for","if","return","bychance"]:
@@ -205,21 +219,16 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             # The label is the value of the result of the previous line.
             # for 'select', 'input', and '=', ast[0] is the var name.
             labelLambda = lambda con,odds : str(doEval(ast[0],con,odds,True))
-        conts = runMarkCommand(conts,labelLambda)
+        conts = runMarkCommand(conts,labelLambda,timeout)
         return conts
     if ast.val == "select":
         newConts = Contexts()
         var = ast[0].varId
         expr = ast[1]
         cond = ast[2]
-        untilCheckTime = 0 # A countdown for when to check the timeout again.
         # For each context, apply the select.
         for con,md in conts:
-            if untilCheckTime == 0:
-                if timeout != None and time.monotonic() > timeout:
-                    raise TimerException("This timeout message shouldn't be used for anything\nThe code timed out, though.")
-                untilCheckTime == 1000
-            untilCheckTime -= 1
+            checkTimer(timeout)
             # Determine the options for the select
             vals = doEval(expr,con,md.odds,False)
             if not isinstance(vals,tuple):
@@ -227,10 +236,12 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             # Generate the new contexts
             newCons = []
             for val in vals:
+                checkTimer(timeout)
                 newCons.append(setVar(con,var,val))
             # Filter by validity
             newCons2 = []
             for con in newCons:
+                checkTimer(timeout)
                 valid = doEval(cond,con,md.odds,False)
                 if valid:
                     newCons2.append(con)
@@ -241,6 +252,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             newOdds = md.odds * Frac(1,optCount)
             newMd = MD(newOdds,md.fracIds(Fraction(1,optCount)))
             for con in newCons2:
+                checkTimer(timeout)
                 newConts += con,newMd
         return newConts.discard(ast.discardsInt)
     elif ast.val == "nop":
@@ -262,6 +274,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         return Contexts()
     elif ast.val == "return":
         for con,md in conts:
+            checkTimer(timeout)
             res = doEval(ast[0],con,md.odds,True)
             data.doReturn(res,md.odds)
             for nodeId in md.ids: MD.graph.nodeDone(nodeId)
@@ -269,6 +282,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     elif ast.val == "for":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,md in conts:
+            checkTimer(timeout)
             # Find range
             rng = doEval(ast[1],con,md.odds,False)
             if not isinstance(rng,tuple):
@@ -276,10 +290,10 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             blocks[rng] += con,md
         newConts = Contexts()
         for block in blocks:
+            checkTimer(timeout)
             subConts = blocks[block]
             for i in block:
-                if timeout != None and time.monotonic() > timeout:
-                    raise TimerException("This timeout message shouldn't be used for anything\nThe code timed out, though.")
+                checkTimer(timeout)
                 # Don't assign var if it will just be instantly deleted.
                 if ast[0].varId in ast.discardsInt:
                     subConts = subConts.discard(ast.discardsInt)
@@ -291,6 +305,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     elif ast.val == "bychance":
         newConts = Contexts()
         for con,md in conts:
+            checkTimer(timeout)
             valid = doEval(ast[0],con,md.odds,False)
             if not isinstance(valid,int):
                 error("Error: 'bychance' statement expression returned non-int.\n"+ast.val.line+"\nError at: "+str(ast.val))
@@ -302,6 +317,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     elif ast.val == "if":
         blocks = defaultdict(Contexts) # A dict of block-context pairs. 'None' is the key for otherwise.
         for con,md in conts:
+            checkTimer(timeout)
             i = iter(ast)
             for expr in i:
                 block = next(i)
@@ -317,6 +333,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         for expr in i:
             blocksOrdered.append(next(i))
         for block in blocksOrdered:
+            checkTimer(timeout)
             if block not in blocks: continue
             if block == None:
                 newConts = newConts + blocks[block].discard(ast.discardsInt)
@@ -331,10 +348,12 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         # Print each item, tracking count.
         toPrint = []
         for con,md in conts:
+            checkTimer(timeout)
             toPrint.append(str(doEval(ast[0],con,md.odds,True)))
         toPrintAgg = defaultdict(int)
         maxLen = 0
         for val in toPrint:
+            checkTimer(timeout)
             toPrintAgg[val] += 1
             newLen = len(str(toPrintAgg[val]))
             if newLen > maxLen: maxLen = newLen
@@ -345,9 +364,11 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             if args.noAgg:
                 toPrint.sort(key=stringSortKey)
                 for t in toPrint:
+                    checkTimer(timeout)
                     print(t)
             else:
                 for key in keys:
+                    checkTimer(timeout)
                     print(f"({str(toPrintAgg[key]).rjust(newLen)}x)    " + key)
         return conts.discard(ast.discardsInt)
     elif ast.val == "printr" or (ast.val == "print" and args.printr):
@@ -355,6 +376,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         toPrint = defaultdict(Fraction)
         totalOdds = Fraction(0)
         for con,md in conts:
+            checkTimer(timeout)
             toPrint[str(doEval(ast[0],con,md.odds,True))] += md.odds
             totalOdds += md.odds
         keys = sorted(toPrint,key=stringSortKey)
@@ -362,12 +384,15 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             print()
         elif args.noAgg:
             for key in keys:
+                checkTimer(timeout)
                 print(key)
         else:
             maxLen = 0
             for key in keys:
+                checkTimer(timeout)
                 maxLen = max(maxLen, len(str(toPrint[key] / totalOdds)))
             for key in keys:
+                checkTimer(timeout)
                 print(f"({str(toPrint[key] / totalOdds).rjust(maxLen)})    {key}")
         return conts.discard(ast.discardsInt)
     elif ast.val == "printa" or ast.val == "print":
@@ -386,6 +411,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
             for key in keys:
                 maxLen = max(maxLen, len(str(toPrint[key])))
             for key in keys:
+                checkTimer(timeout)
                 print(f"({str(toPrint[key]).rjust(maxLen)})    {key}")
         return conts.discard(ast.discardsInt)
     elif ast.val == "set":
@@ -393,6 +419,7 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         if ast[0].val == "$":
             error(red("Error:") + " Cannot assign value to '$' variable.")
         for con,md in conts:
+            checkTimer(timeout)
             res = doEval(ast[2],con,md.odds,True)
             con = setVar(con,ast[0].varId,res)
             newConts += con,md
@@ -404,11 +431,13 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
         inpCountId = varLookup["~inpCount~"]
         allDisps = defaultdict(list)
         for con,md in conts:
+            checkTimer(timeout)
             toDisp = doEval(ast[1],con,md.odds,True)
             inpCount = con[inpCountId]
             allDisps[(toDisp,inpCount)].append((setVar(con,inpCountId,con[inpCountId]+1),md))
         keys = sorted(allDisps)
         for toDisp,inpCount in keys:
+            checkTimer(timeout)
             res = doInput(toDisp,inpCount)
             for con,md in allDisps[toDisp,inpCount]:
                 newConts += setVar(con,ast[0].varId,res),md
@@ -416,24 +445,26 @@ def runCommand(args,ast,varLookup,data,conts,autoMark,timeout):
     elif ast.val == "!":
         # LabelLambda is the lambda function to make the label for each new node.
         labelLambda = lambda con,odds : str(doEval(ast[0],con,odds,True))
-        return runMarkCommand(conts,labelLambda)
+        return runMarkCommand(conts,labelLambda,timeout)
     else:
         error(f"error in runCommand: unknown command: {orange(ast.val.val)}")
     error(f"No return value for runCommand: {orange(ast.val.val)}")
 
 
-def runMarkCommand(conts,labelLambda):
+def runMarkCommand(conts,labelLambda,timeout):
     """Add a new row of nodes for the paths which run this command.
     Takes:
         conts - existing context
         labelLambda - a lambda function to generate the label. It should take a single context and odds."""
     newConts = Contexts()
     for con,md in conts:
+        checkTimer(timeout)
         odds = md.odds
         oldIds = md.ids
         label = labelLambda(con,odds)
         newId = MD.graph.newNode(label,odds)
         for oldId in oldIds:
+            checkTimer(timeout)
             MD.graph.addEdge(oldId, newId, oldIds[oldId])
         newConts += con,MD(odds,newId)
     return newConts
@@ -744,9 +775,12 @@ def generateRes(d,args):
     raise Exception(f"Reached end of generateRes({d},{args}).\nThis should never happen.")
 
 
-def runInternal(fileCont,args):
+def runInternal(fileCont,args,toRunWhenGraphStarted=lambda:None):
     """a simplified version of main(), but it is designed to be called from part of a bigger program. It cannot be run multiple times in parallel (due to the use of global vars, most notably MD.graph and MD.hasGraph.
-    Takes a file as a str and system arguments as an args obj"""
+    Takes:
+    a file as a str
+    system arguments as an args obj
+    Optionally, a function to call when it starts rendering the graph"""
     fileS = fileCont
 
     # No discards. This is used for configuring the AST
@@ -785,6 +819,7 @@ def runInternal(fileCont,args):
 
     # Generate the graph
     if args.graph:
+        toRunWhenGraphStarted()
         graphRes = makeGraph(args,True)
     else:
         # This value is discarded in the recieving code,
