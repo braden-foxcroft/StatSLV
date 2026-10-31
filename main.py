@@ -761,13 +761,17 @@ def generateRes(d,args):
     else:
         resStr = ""
         if d._done != 0:
+            if args.graph:
+                graphWarning = "\nThe graph will not show this change."
+            else:
+                graphWarning = ""
             if d._pass and not d._fail:
                 if not args.silent:
-                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {red('fail')}.\nThe graph may render incorrectly (if applicable)")
+                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {red('fail')}.{graphWarning}")
                 d._done,d._fail = Frac(0,1),d._done
             elif d._fail and not d._pass:
                 if not args.silent:
-                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {green('pass')}\nThe graph may render incorrectly (if applicable)")
+                    resStr = lineAppend(resStr,f"All {yellow('unmarked')} results marked as {green('pass')}.{graphWarning}")
                 d._done,d._pass = Frac(0,1),d._done
             elif d._fail and d._pass:
                 return f"The code mixes the use of {green('pass')}, {red('fail')}, and {yellow('done')}.\n({yellow('done')} is insterted automatically after the final line of the code, to catch any cases where the code doesn't {green('pass')} or {red('fail')} first.)\nPlease make sure that your code always finishes with a {green('pass')} or {red('fail')}!",False

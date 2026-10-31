@@ -142,7 +142,7 @@ def main_page():
             set_run_button('graph_rendering')
             with editor:
                 await ui.run_javascript('''
-                        if (window.graphViewer && !window.graphFitted) {
+                        if (window.graphViewer !== undefined && !window.graphFitted) {
                             window.graphZoom = graphViewer.getZoom();
                             window.graphPan = graphViewer.getPan();
                             document.querySelector('#graph-container').style.visibility = 'hidden';
@@ -166,14 +166,14 @@ def main_page():
                     await makeSVGViewer()
 
                     await ui.run_javascript('''
-                        if (window.graphFitted) {
+                        if (window.graphViewer !== undefined && window.graphFitted) {
                             graphFitted = false
                             graphViewer.updateBBox();
                             fitGraph()
-                        } else if (window.graphViewer) {
+                        } else if (window.graphViewer !== undefined) {
                             graphViewer.updateBBox();
 
-                            if (window.graphZoom !== undefined) {
+                            if (window.graphZoom) {
                                 graphViewer.zoom(graphZoom);
                                 graphViewer.pan(graphPan);
                             }
@@ -463,6 +463,8 @@ def main_page():
             await ui.run_javascript('''
                 window.fitButton = document.querySelector('#fullsize-button');
                 window.graphFitted = false;
+                window.noFitForSafety = false; // Don't fit while people are using hide buttons.
+                window.noFitForSafetyTimeout = undefined;
                 const observer = new ResizeObserver(() => {
                     graphViewer.resize();
                     if (graphFitted) {
@@ -472,11 +474,23 @@ def main_page():
 
                 observer.observe(document.getElementById('graph-container'));
 
+
+
                 window.fitGraph = function() {
                     window.graphFitted = false;
-                    if (graphViewer) {
-                        graphViewer.fit();
-                        graphViewer.center();
+                    if (graphViewer !== undefined) {
+                        if (noFitForSafety || !document.getElementById('graph-container').clientWidth || !document.getElementById('graph-container').clientHeight) {
+                            noFitForSafety = true;
+                            clearTimeout(noFitForSafetyTimeout);
+                            window.noFitForSafetyTimeout = setTimeout(() => {
+                                window.noFitForSafety = false;
+                                fitGraph();
+                            }, 1000);
+
+                        } else {
+                            graphViewer.fit();
+                            graphViewer.center();
+                        }
                     }
                     window.fitButton.style.display = 'none';
                     window.graphFitted = true;
